@@ -1,69 +1,211 @@
 """
-indicators.py — Stock Rotation v3
-Technical indicators: RSI, ADX, CMF, Z-score.
+Technical indicators module for NSE Market Sector Analysis Tool
+Implements RSI, ADX, and CMF calculations with Wilder's smoothing
 """
 
 import pandas as pd
 import numpy as np
+
 from config import RSI_PERIOD, ADX_PERIOD, CMF_PERIOD
 
 
-def calculate_rsi(data: pd.DataFrame, period: int = RSI_PERIOD) -> pd.Series:
-    """RSI using Wilder's smoothing (matches TradingView)."""
+def calculate_rsi(data, period=RSI_PERIOD):
+    """
+    Calculate Relative Strength Index (RSI) using Wilder's smoothing method.
+    This matches TradingView's RSI calculation.
+    
+    Args:
+        data: DataFrame with 'Close' column
+        period: RSI period (default 14)
+        
+    Returns:
+        Series with RSI values
+    """
     delta = data['Close'].diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = -delta.where(delta < 0, 0.0)
+    
+    # Separate gains and losses
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    
+    # Use Wilder's smoothing (exponential moving average with alpha = 1/period)
+    # This is equivalent to TradingView's method
     avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
     avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
+    
     rs = avg_gain / avg_loss
-    return (100.0 - 100.0 / (1.0 + rs)).fillna(50.0)
+    rsi = 100 - (100 / (1 + rs))
+    
+    return rsi
 
 
-def calculate_cmf(data: pd.DataFrame, period: int = CMF_PERIOD) -> pd.Series:
-    """Chaikin Money Flow."""
-    h, l, c, v = data['High'], data['Low'], data['Close'], data['Volume']
-    mfm = ((c - l) - (h - c)) / (h - l)
-    mfm = mfm.fillna(0.0)
-    mfv = mfm * v
-    return mfv.rolling(period).sum() / v.rolling(period).sum()
+def calculate_adx(data, period=ADX_PERIOD):
+    """
+    Calculate Average Directional Index (ADX) using Wilder's smoothing.
+    Uses the TradingView-standard method.
+    
+    Args:
+        data: DataFrame with OHLC data
+        period: ADX period (default 14)
+        
+    Returns:
+        Tuple of (ADX, +DI, -DI, DI_Spread)
+    """
+    high = data['High']
+    low = data['Low']
+    close = data['Close']
+    
+    # Calculate True Range
+    tr1 = high - low
+    tr2 = abs(high - close.shift())
+    tr3 = abs(low - close.shift())
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    
+    # Calculate Directional Movement
+    up_move = high - high.shift()
+    down_move = low.shift() - low
+    
+    plus_dm = pd.Series(np.where((up_move > down_move) & (up_move > 0), up_move, 0), index=data.index)
+    minus_dm = pd.Series(np.where((down_move > up_move) & (down_move > 0), down_move, 0), index=data.index)
+    
+    # Apply Wilder's smoothing
+    def wilders_smoothing(series, period):
+        """Apply Wilder's smoothing method (RMA)."""
+        result = pd.Series(index=series.index, dtype=float)
+        result.iloc[period - 1] = series.iloc[:period].mean()
+        
+        for i in range(period, len(series)):
+            result.iloc[i] = (result.iloc[i - 1] * (period - 1) + series.iloc[i]) / period
+        
+        return result
+    
+    # Smooth TR, +DM, -DM using Wilder's method
+    atr = wilders_smoothing(tr, period)
+    plus_dm_smooth = wilders_smoothing(plus_dm, period)
+    minus_dm_smooth = wilders_smoothing(minus_dm, period)
+    
+    # Calculate Directional Indicators
+    plus_di = 100 * (plus_dm_smooth / atr)
+    minus_di = 100 * (minus_dm_smooth / atr)
+    
+    # Calculate DX (Directional Movement Index)
+    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+    dx = dx.fillna(0)
+    
+    # Apply Wilder's smoothing to DX to get ADX
+    adx = wilders_smoothing(dx, period)
+    
+    di_spread = plus_di - minus_di
+    
+    return adx, plus_di, minus_di, di_spread
 
 
-def calculate_adx(data: pd.DataFrame, period: int = ADX_PERIOD):
-    """ADX with +DI, -DI, DI_Spread using Wilder's smoothing."""
-    h, l, c = data['High'], data['Low'], data['Close']
-    tr = pd.concat([h - l, (h - c.shift()).abs(), (l - c.shift()).abs()], axis=1).max(axis=1)
-    up = h - h.shift()
-    dn = l.shift() - l
-    plus_dm = pd.Series(np.where((up > dn) & (up > 0), up, 0.0), index=data.index)
-    minus_dm = pd.Series(np.where((dn > up) & (dn > 0), dn, 0.0), index=data.index)
+def calculate_cmf(data, period=CMF_PERIOD):
+    """
+    Calculate Chaikin Money Flow (CMF).
+    
+    Args:
+        data: DataFrame with OHLCV data
+        period: CMF period (default 20)
+        
+    Returns:
+        Series with CMF values
+    """
+    high = data['High']
+    low = data['Low']
+    close = data['Close']
+    volume = data['Volume']
+    
+    # If volume is all zeros or missing, CMF cannot be computed meaningfully
+    if volume is None or (volume == 0).all() or volume.isna().all():
+        import pandas as pd
+        return pd.Series(float('nan'), index=data.index)
 
-    def wilder(s, p):
-        r = s.copy() * np.nan
-        r.iloc[p - 1] = s.iloc[:p].mean()
-        for i in range(p, len(s)):
-            r.iloc[i] = (r.iloc[i - 1] * (p - 1) + s.iloc[i]) / p
-        return r
-
-    atr = wilder(tr, period)
-    pdm = wilder(plus_dm, period)
-    mdm = wilder(minus_dm, period)
-    pdi = 100 * pdm / atr
-    mdi = 100 * mdm / atr
-    dx = (100 * (pdi - mdi).abs() / (pdi + mdi)).fillna(0.0)
-    adx = wilder(dx, period)
-    return adx, pdi, mdi, pdi - mdi
+    mf_multiplier = ((close - low) - (high - close)) / (high - low)
+    mf_multiplier = mf_multiplier.fillna(0)
+    
+    mf_volume = mf_multiplier * volume
+    vol_sum = volume.rolling(window=period).sum()
+    cmf = mf_volume.rolling(window=period).sum() / vol_sum.replace(0, float('nan'))
+    
+    return cmf
 
 
-def calculate_z_score(series: pd.Series) -> float:
-    """Z-score of the latest value in a series."""
+def calculate_z_score(series):
+    """
+    Calculate Z-Score for a series.
+    
+    Args:
+        series: Pandas Series
+        
+    Returns:
+        Z-Score value for the last element
+    """
     if series.isna().all() or len(series) < 2:
         return 0.0
-    m, s = series.mean(), series.std()
-    if s == 0 or pd.isna(s):
+        
+    mean = series.mean()
+    std = series.std()
+    
+    if std == 0 or pd.isna(std):
         return 0.0
-    return float((series.iloc[-1] - m) / s)
+        
+    latest_value = series.iloc[-1]
+    z_score = (latest_value - mean) / std
+    
+    return z_score
 
 
-def sma(series: pd.Series, period: int) -> pd.Series:
-    """Simple moving average."""
-    return series.rolling(period).mean()
+def calculate_mansfield_rs(sector_data, benchmark_data, period=None, interval='1d'):
+    """
+    Calculate Mansfield Relative Strength.
+    
+    Formula: ((Current Ratio / Average Ratio) - 1) * 10
+    where Ratio = Sector Close / Benchmark Close
+    
+    Args:
+        sector_data: Sector price data DataFrame
+        benchmark_data: Benchmark (Nifty 50) data DataFrame
+        period: Period for moving average (if None, auto-calculated based on interval)
+        interval: Data interval ('1d' for daily, '1wk' for weekly, '1h' for hourly)
+        
+    Returns:
+        Latest Mansfield RS value
+    """
+    if len(sector_data) < 2 or len(benchmark_data) < 2:
+        return 0.0
+    
+    # Auto-calculate period based on interval if not provided
+    if period is None:
+        if interval == '1wk':
+            period = 52  # 52 weeks = 1 year
+        elif interval == '1h':
+            period = 250  # ~250 hours of trading
+        else:  # '1d' or default
+            period = 250  # 250 days = ~52 weeks = 1 year
+    
+    try:
+        # Align indices
+        common_index = sector_data.index.intersection(benchmark_data.index)
+        if len(common_index) < period:
+            # If insufficient data, use what's available (at least 20 periods)
+            if len(common_index) < 20:
+                return 0.0
+            period = len(common_index)
+        
+        sector_close = sector_data['Close'].loc[common_index]
+        benchmark_close = benchmark_data['Close'].loc[common_index]
+        
+        # Calculate RS Ratio
+        rs_ratio = sector_close / benchmark_close
+        
+        # Calculate moving average of the ratio
+        rs_ratio_ma = rs_ratio.rolling(window=period).mean()
+        
+        # Calculate Mansfield RS
+        mansfield_rs = ((rs_ratio / rs_ratio_ma) - 1) * 10
+        
+        return mansfield_rs.iloc[-1] if not mansfield_rs.isna().all() else 0.0
+        
+    except Exception as e:
+        return 0.0
+

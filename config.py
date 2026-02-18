@@ -1,54 +1,122 @@
 """
-config.py — Stock Rotation v3
-Constants, sector index symbols, default weights.
+Configuration constants for NSE Market Sector Analysis Tool
 """
 
-APP_VERSION = "3.0.0"
+# ---------------------------------------------------------------------------
+# Sector-company Excel: ONE place to edit (avoids confusion between folders)
+# Set this to the full path of your Sector-Company.xlsx if you want to always
+# use the same file (e.g. on E: drive). Leave None to use the file in the
+# same folder as the app.
+# Default: E: drive project folder (single source of truth for company data)
+SECTOR_COMPANY_EXCEL_PATH = None  # None = use Sector-Company.xlsx in the same folder as the app
 
-# ── Sector index symbols (Yahoo Finance tickers for NSE sector indices) ──
-SECTORS = {
-    'Nifty 50':     '^NSEI',
-    'Auto':         '^CNXAUTO',
-    'Commodities':  '^CNXCOMMODITIES',
-    'Defence':      '^NSEDEFENCE.NS',
-    'Energy':       '^CNXENERGY',
-    'FMCG':         '^CNXFMCG',
-    'IT':           '^CNXIT',
-    'Infra':        '^CNXINFRA',
-    'Media':        '^CNXMEDIA',
-    'Metal':        '^CNXMETAL',
-    'Fin Services': '^NIFTYFINSERV',
-    'Pharma':       '^CNXPHARMA',
-    'PSU Bank':     '^NIFTYPSUBANK',
-    'Pvt Bank':     '^CNXPVTBANK',
-    'Realty':       '^CNXREALTY',
-    'Oil & Gas':    '^CNXOILGAS',
-}
-
-# ── Technical indicator periods ──
+# Technical Indicator Periods
 RSI_PERIOD = 14
 ADX_PERIOD = 14
 CMF_PERIOD = 20
+MANSFIELD_RS_PERIOD = 250  # ~52 weeks for daily data
 
-# ── Sector momentum weights (Trending mode: Z-score based) ──
-DEFAULT_MOMENTUM_WEIGHTS = {
-    'RSI': 50.0,
-    'CMF': 50.0,
+# Decimal Formatting (as per user preference)
+DECIMAL_PLACES = {
+    'RSI': 1,
+    'ADX': 1,
+    'ADX_Z': 1,
+    'DI_Spread': 1,
+    'CMF': 2,
+    'RS_Rating': 1,
+    'Mansfield_RS': 1,
+    'Momentum_Score': 1,
+    'Reversal_Score': 1
 }
 
-# ── Confluence ──
-TOP_N_BULLISH_SECTORS = 4
-BOTTOM_N_BEARISH_SECTORS = 6
+# NSE Sector Symbols (Indices)
+SECTORS = {
+    'Nifty 50': '^NSEI',
+    'Auto': '^CNXAUTO',
+    'Commodities': '^CNXCOMMODITIES',
+    'Defence': '^NSEDEFENCE.NS',
+    'Energy': '^CNXENERGY',
+    'FMCG': '^CNXFMCG',
+    'IT': '^CNXIT',
+    'Infra': '^CNXINFRA',
+    'Media': '^CNXMEDIA',
+    'Metal': '^CNXMETAL',
+    'Fin Services': '^NIFTYFINSERV',
+    'Pharma': '^CNXPHARMA',
+    'PSU Bank': '^NIFTYPSUBANK',
+    'Pvt Bank': '^CNXPVTBANK',
+    'Realty': '^CNXREALTY',
+    'Oil & Gas': '^CNXOILGAS'
+}
 
-# Screener pass-through counts (how many go from Stage 2 → Stage 3)
-SCREENER_TOP_N = 20
-SCREENER_BOT_N = 20
+# ETF Proxy Symbols (alternative to indices) - Primary choice
+SECTOR_ETFS = {
+    'Nifty 50': 'NIFTYBEES.NS',
+    'Auto': 'AUTOBEES.NS',
+    'Commodities': 'N/A',
+    'Defence': 'DEFENCE.NS',
+    'Energy': 'MOENERGY.NS',
+    'FMCG': 'FMCGIETF.NS',
+    'IT': 'ITBEES.NS',
+    'Infra': 'INFRABEES.NS',
+    'Media': 'N/A',
+    'Metal': 'METALIETF.NS',
+    'Fin Services': 'FINIETF.NS',
+    'Pharma': 'PHARMABEES.NS',
+    'PSU Bank': 'PSUBNKBEES.NS',
+    'Pvt Bank': 'PVTBANKBEES.NS',
+    'Realty': 'MOREALTY.NS',
+    'Oil & Gas': 'OILIETF.NS'
+}
 
-# ── Historical rankings ──
-HISTORICAL_LOOKBACK_DAYS = 15  # last 15 trading days
+# Alternate ETF Symbols (Secondary choice, if primary unavailable)
+SECTOR_ETFS_ALTERNATE = {
+    'Energy': 'CPSEETF.NS',
+    'FMCG': 'ICICIFMCG.NS',
+    'Infra': 'INFRAIETF.NS',
+    'Metal': 'METALBEES.NS',
+    'Pvt Bank': 'PVTBANIETF.NS'
+}
 
-# ── Formatting ──
-DECIMAL_PLACES = {
-    'RSI': 1, 'ADX': 1, 'ADX_Z': 1, 'DI_Spread': 1,
-    'CMF': 2, 'RS_Rating': 1, 'Momentum_Score': 1,
+# Analysis Thresholds
+MIN_DATA_POINTS = 50
+# For ranking-based momentum score, super bullish means top ~30% of sectors
+# With ~15 sectors, this means top 4-5 sectors
+# Threshold is calculated dynamically based on sector count
+MOMENTUM_SCORE_PERCENTILE_THRESHOLD = 70  # Top 30% of sectors
+
+# Default Scoring Weights (user-configurable)
+# Momentum weights are percentages that sum to 100%
+# Historical mode: RS_Rating, ADX_Z, RSI, DI_Spread (CMF = 0%)
+DEFAULT_MOMENTUM_WEIGHTS = {
+    'ADX_Z': 20.0,
+    'RS_Rating': 40.0,
+    'RSI': 30.0,
+    'DI_Spread': 10.0,
+    'CMF': 0.0
+}
+# Trending mode: composite score 50% CMF + 50% RSI (default mode)
+DEFAULT_MOMENTUM_WEIGHTS_TRENDING = {
+    'CMF': 50.0,
+    'RSI': 50.0
+}
+
+DEFAULT_REVERSAL_WEIGHTS = {
+    'RS_Rating': 40.0,
+    'CMF': 40.0,
+    'RSI': 10.0,
+    'ADX_Z': 10.0
+}
+
+# Reversal Filter Thresholds
+REVERSAL_BUY_DIV = {
+    'RSI': 40,
+    'ADX_Z': -0.5,
+    'CMF': 0.1
+}
+
+REVERSAL_WATCH = {
+    'RSI': 50,
+    'ADX_Z': 0.5,
+    'CMF': 0
 }

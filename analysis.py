@@ -73,7 +73,7 @@ def analyze_sector(name, data, benchmark_data, momentum_weights=None, reversal_w
         latest_rsi = rsi.iloc[-1] if not rsi.isna().all() else 50.0
         latest_adx = adx.iloc[-1] if not adx.isna().all() else 0.0
         latest_di_spread = di_spread.iloc[-1] if not di_spread.isna().all() else 0.0
-        latest_cmf = cmf.iloc[-1] if not cmf.isna().all() else 0.0
+        latest_cmf = cmf.iloc[-1] if not cmf.isna().all() else float('nan')
         
         # Calculate Z-Score for ADX
         adx_z_score = calculate_z_score(adx.dropna())
@@ -261,12 +261,18 @@ def analyze_all_sectors(sector_data_dict, benchmark_data, momentum_weights=None,
     if use_trending_z and 'CMF' in df.columns and num_sectors > 1:
         # Trending: 50% Z-score of RSI + 50% Z-score of CMF (cross-sectional), then scale to 1-10
         rsi_mean, rsi_std = df['RSI'].mean(), df['RSI'].std()
-        cmf_mean, cmf_std = df['CMF'].mean(), df['CMF'].std()
         rsi_z = (df['RSI'] - rsi_mean) / rsi_std if rsi_std and not pd.isna(rsi_std) else pd.Series(0.0, index=df.index)
-        cmf_z = (df['CMF'] - cmf_mean) / cmf_std if cmf_std and not pd.isna(cmf_std) else pd.Series(0.0, index=df.index)
         rsi_z = rsi_z.fillna(0)
-        cmf_z = cmf_z.fillna(0)
-        raw_score = 0.5 * rsi_z + 0.5 * cmf_z
+        # CMF: only compute Z if we have valid (non-NaN) values across sectors
+        cmf_valid = df['CMF'].dropna()
+        if len(cmf_valid) >= 2:
+            cmf_mean, cmf_std = cmf_valid.mean(), cmf_valid.std()
+            cmf_z = (df['CMF'] - cmf_mean) / cmf_std if cmf_std and not pd.isna(cmf_std) else pd.Series(0.0, index=df.index)
+            cmf_z = cmf_z.fillna(0)  # sectors with no volume get 0 (neutral)
+            raw_score = 0.5 * rsi_z + 0.5 * cmf_z
+        else:
+            # No usable CMF data (all indices with no volume) - use RSI only
+            raw_score = rsi_z
         rmin, rmax = raw_score.min(), raw_score.max()
         if rmax > rmin:
             df['Momentum_Score'] = 1 + (raw_score - rmin) / (rmax - rmin) * 9
