@@ -2786,6 +2786,66 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
                     "Dir = confluence direction. 1D/2D/3D/1W % = next 1/2/3/5-day return. Sector = stock sector. "
                     f"Last 30 trading days. Switch timeframe or sector filter above to recompute."
                 )
+
+                # ── Point 5: Win Ratio Summary ─────────────────────────────
+                st.markdown("---")
+                st.markdown("#### 🎯 Win Ratio Summary (Last 30 Days)")
+                st.caption(
+                    "For each confluence signal (Bullish #1, #2 / Bearish #1, #2), "
+                    "% of days where the 1-week forward return exceeded the threshold. "
+                    "Only rows with actual return data are counted."
+                )
+                thresholds = [1.0, 1.5, 2.0]
+                win_cols_bull = {
+                    'Bull #1': ('Conf Bull #1 1W %', 'Conf Bull #1'),
+                    'Bull #2': ('Conf Bull #2 1W %', 'Conf Bull #2'),
+                }
+                win_cols_bear = {
+                    'Bear #1': ('Conf Bear #1 1W %', 'Conf Bear #1'),
+                    'Bear #2': ('Conf Bear #2 1W %', 'Conf Bear #2'),
+                }
+                all_win_cols = {**win_cols_bull, **win_cols_bear}
+                if len(df_primary) > 0:
+                    win_rows = []
+                    for label, (ret_col, name_col) in all_win_cols.items():
+                        if ret_col not in df_primary.columns:
+                            continue
+                        rets = df_primary[ret_col].dropna()
+                        # For bearish, profit = negative return (short)
+                        is_bear = 'Bear' in label
+                        total = len(rets)
+                        if total == 0:
+                            continue
+                        row_w = {'Signal': label, 'Total Signals': total}
+                        for thr in thresholds:
+                            if is_bear:
+                                wins = (rets <= -thr).sum()
+                            else:
+                                wins = (rets >= thr).sum()
+                            row_w[f'≥{thr}% Win%'] = f"{wins/total*100:.0f}% ({wins}/{total})"
+                        avg = rets.mean()
+                        row_w['Avg 1W Return'] = f"{avg:+.1f}%"
+                        win_rows.append(row_w)
+                    if win_rows:
+                        df_win = pd.DataFrame(win_rows)
+                        def _color_win(val):
+                            if isinstance(val, str) and '%' in val and '(' in val:
+                                try:
+                                    pct = float(val.split('%')[0])
+                                    if pct >= 60: return 'background-color:#1a5c1a; color:white'
+                                    elif pct >= 40: return 'background-color:#5c5c1a; color:white'
+                                    else: return 'background-color:#5c1a1a; color:white'
+                                except: pass
+                            return ''
+                        pct_cols = [c for c in df_win.columns if 'Win%' in c]
+                        st.dataframe(
+                            df_win.style.applymap(_color_win, subset=pct_cols),
+                            use_container_width=True, hide_index=True
+                        )
+                    else:
+                        st.info("No return data yet — win ratios will populate as confluence signals accumulate over 30 days.")
+                # ──────────────────────────────────────────────────────────
+
         else:
             st.info("No rows computed for the 30-day table.")
     
@@ -3726,7 +3786,10 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
 
             # Find OI columns — NSE typically has two 'OI' columns (one for CE, one for PE)
             # The CE OI is to the LEFT of Strike Price, PE OI is to the RIGHT
-            oi_cols = [c for c in df.columns if 'OI' == c.strip().upper() or 'OI' in c.upper()]
+            # Handle pandas duplicate column renaming: OI, OI.1, OI.2
+            oi_cols = [c for c in df.columns if c.strip().upper() == 'OI' 
+                       or c.strip().upper().startswith('OI.') 
+                       or c.strip().upper() == 'OPEN INTEREST']
             strike_col = None
             for c in df.columns:
                 if 'strike' in c.lower():
@@ -3802,15 +3865,19 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
 
         if uploaded_csv is not None:
             # Save uploaded file temporarily and parse
-            _tmp_path = os.path.join(_pcr_default_dir, 'nifty_oc_uploaded.csv')
             try:
+                import tempfile, os as _os
+                _tmp_dir = tempfile.gettempdir()
+                _tmp_path = _os.path.join(_tmp_dir, 'nifty_oc_uploaded.csv')
                 with open(_tmp_path, 'wb') as f:
                     f.write(uploaded_csv.getvalue())
                 pcr_val, put_oi, call_oi, pcr_file_date = _pcr_from_csv(_tmp_path)
                 if pcr_val:
-                    pcr_source = f"Uploaded CSV"
-            except Exception:
-                pass
+                    pcr_source = "Uploaded CSV"
+                else:
+                    st.warning("⚠️ Could not parse OI from uploaded CSV. Check it is NSE Option Chain format.")
+            except Exception as _e:
+                st.error(f"❌ Error reading uploaded CSV: {_e}")
 
         if not pcr_val and _pcr_candidates:
             st.info(f"Auto-detected CSV: `{os.path.basename(_pcr_candidates[0])}`")
@@ -5265,9 +5332,11 @@ Opposing conditions get **negative (penalty)** points — a downtrending stock c
                         end_date = pd.Timestamp(analysis_date).date() if hasattr(analysis_date, 'date') else (analysis_date if hasattr(analysis_date, 'year') else pd.Timestamp(analysis_date).date())
                         dates_30 = pd.bdate_range(end=end_date, periods=30, freq='B').tolist()
                         dates_30 = list(reversed(dates_30))
-                        data_1d = fetch_sector_data(sel_symbol, end_date=analysis_date, interval='1d')
+                        from datetime import datetime as _dt3
+                        _hist_end = _dt3.combine(analysis_date, _dt3.min.time()) if hasattr(analysis_date, 'year') and not isinstance(analysis_date, _dt3) else analysis_date
+                        data_1d = fetch_sector_data(sel_symbol, end_date=_hist_end, interval='1d')
                         if conf_tf_code in ('2h', '4h'):
-                            data_entry_raw = fetch_sector_data(sel_symbol, end_date=analysis_date, interval='1h')
+                            data_entry_raw = fetch_sector_data(sel_symbol, end_date=_hist_end, interval='1h')
                         else:
                             data_entry_raw = data_1d
                         min_daily, min_entry = 50, (80 if conf_tf_code == '4h' else 40)
@@ -5276,11 +5345,13 @@ Opposing conditions get **negative (penalty)** points — a downtrending stock c
                             d_ts = pd.Timestamp(date_t)
                             d_date = d_ts.date() if hasattr(d_ts, 'date') else d_ts
                             if data_1d is not None and len(data_1d) >= min_daily:
-                                data_1d_t = data_1d[data_1d.index.date <= d_date].tail(min_daily) if hasattr(data_1d.index, 'date') else data_1d[data_1d.index <= d_ts].tail(min_daily)
+                                _idx_1d = data_1d.index.tz_localize(None) if hasattr(data_1d.index, 'tz') and data_1d.index.tz else data_1d.index
+                                data_1d_t = data_1d.iloc[(_idx_1d.normalize() <= pd.Timestamp(d_date)).values].tail(min_daily)
                             else:
                                 data_1d_t = None
                             if data_entry_raw is not None and len(data_entry_raw) >= min_entry:
-                                data_entry_t = data_entry_raw[data_entry_raw.index.date <= d_date].tail(min_entry) if hasattr(data_entry_raw.index, 'date') else data_entry_raw[data_entry_raw.index <= d_ts].tail(min_entry)
+                                _idx_e = data_entry_raw.index.tz_localize(None) if hasattr(data_entry_raw.index, 'tz') and data_entry_raw.index.tz else data_entry_raw.index
+                                data_entry_t = data_entry_raw.iloc[(_idx_e.normalize() <= pd.Timestamp(d_date)).values].tail(min_entry)
                             else:
                                 data_entry_t = None
                             if data_1d_t is None or len(data_1d_t) < 30 or data_entry_t is None or len(data_entry_t) < min_entry:

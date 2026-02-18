@@ -252,7 +252,7 @@ def calculate_company_trend(company_symbol, company_data, benchmark_data, all_co
         return df
         
     except Exception as e:
-        st.warning(f"âš ï¸ Error calculating company trend: {str(e)}")
+        st.warning(f"⚠️ Error calculating company trend: {str(e)}")
         return None
 
 
@@ -278,9 +278,9 @@ def display_company_momentum_tab(time_interval='Daily', momentum_weights=None, a
     interval_map = {'Daily': '1d', 'Weekly': '1wk', 'Hourly': '1h'}
     yf_interval = interval_map.get(time_interval, '1d')
     
-    st.markdown("### ðŸ“ˆ Company Momentum Analysis")
+    st.markdown("### 📈 Company Momentum Analysis")
     st.markdown("---")
-    st.info("ðŸ” **Company momentum is based exclusively on #1 ranked sector stocks.** The default sector is the top-ranked sector from the Momentum Ranking tab. You can switch to other sectors below.")
+    st.info("🔍 **Company momentum is based exclusively on #1 ranked sector stocks.** The default sector is the top-ranked sector from the Momentum Ranking tab. You can switch to other sectors below.")
     
     # Sector selector with rank #1 as default (Company momentum based on #1 ranked sector)
     sector_list = list(SECTOR_COMPANIES.keys())
@@ -295,7 +295,7 @@ def display_company_momentum_tab(time_interval='Daily', momentum_weights=None, a
         return
     
     if default_sector and selected_sector == default_sector:
-        st.caption("ðŸ“Œ Showing companies from **#1 ranked sector** (default).")
+        st.caption("📌 Showing companies from **#1 ranked sector** (default).")
     st.markdown(f"**Analysis:** {selected_sector} | Top companies by index weight")
     
     # Fetch company data using cached function with correct interval and date
@@ -303,14 +303,14 @@ def display_company_momentum_tab(time_interval='Daily', momentum_weights=None, a
         companies_data, failed_companies, benchmark_data = fetch_company_data_cached(selected_sector, interval=yf_interval, analysis_date_str=analysis_date_str)
         
         if not companies_data:
-            st.error(f"âŒ No data available for companies in {selected_sector}")
+            st.error(f"❌ No data available for companies in {selected_sector}")
             return
         
         if failed_companies:
-            st.warning(f"âš ï¸ Could not fetch data for: {', '.join(failed_companies)}")
+            st.warning(f"⚠️ Could not fetch data for: {', '.join(failed_companies)}")
     
     if benchmark_data is None or len(benchmark_data) == 0:
-        st.error("âŒ Unable to fetch Nifty 50 benchmark data")
+        st.error("❌ Unable to fetch Nifty 50 benchmark data")
         return
     
     # Build analysis for each company - first collect all raw indicator values
@@ -493,7 +493,7 @@ def display_company_momentum_tab(time_interval='Daily', momentum_weights=None, a
     
     st.dataframe(df_companies_styled, use_container_width=True, height=400)
     
-    st.success(f"âœ… Analysis complete for {len(companies_data)} companies in {selected_sector}")
+    st.success(f"✅ Analysis complete for {len(companies_data)} companies in {selected_sector}")
     
     # Summary stats with CMF sum
     col1, col2, col3, col4 = st.columns(4)
@@ -509,13 +509,13 @@ def display_company_momentum_tab(time_interval='Daily', momentum_weights=None, a
         # Calculate CMF sum for the sector
         cmf_values = [float(r['CMF']) for r in company_results if r['CMF'] != 'N/A']
         cmf_sum = sum(cmf_values) if cmf_values else 0
-        cmf_delta = "â†‘ Inflow" if cmf_sum > 0 else "â†“ Outflow"
+        cmf_delta = "↑ Inflow" if cmf_sum > 0 else "↓ Outflow"
         st.metric("CMF Sum (Sector)", f"{cmf_sum:.2f}", delta=cmf_delta,
                   help="Sum of all company CMF values in this sector")
     
     # Company Trend Analysis
     st.markdown("---")
-    st.markdown("### ðŸ“Š Company Trend Analysis (T-7 to T)")
+    st.markdown("### 📊 Company Trend Analysis (T-7 to T)")
     
     company_symbols_list = list(companies_data.keys())
     
@@ -609,7 +609,7 @@ def display_company_momentum_tab(time_interval='Daily', momentum_weights=None, a
                 return [''] * len(row)
             
             # Add color code legend
-            with st.expander("ðŸŽ¨ **Color Code Legend** - Bullish/Bearish Signals", expanded=True):
+            with st.expander("🎨 **Color Code Legend** - Bullish/Bearish Signals", expanded=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Green (Bullish Signals)**")
@@ -632,7 +632,7 @@ def display_company_momentum_tab(time_interval='Daily', momentum_weights=None, a
             
             trend_styled = trend_display.style.apply(highlight_rank_row, axis=1).applymap(style_company_trend)
             st.dataframe(trend_styled, use_container_width=True, hide_index=True)
-            st.caption("ðŸ“ˆ **Note:** Dates as columns (T-7 to T), Indicators as rows. Green/Red shows bullish/bearish signals.")
+            st.caption("📈 **Note:** Dates as columns (T-7 to T), Indicators as rows. Green/Red shows bullish/bearish signals.")
 
 
 def display_company_reversal_tab(time_interval='Daily', reversal_weights=None, reversal_thresholds=None, analysis_date=None, default_sector=None):
@@ -662,9 +662,9 @@ def display_company_reversal_tab(time_interval='Daily', reversal_weights=None, r
     interval_map = {'Daily': '1d', 'Weekly': '1wk', 'Hourly': '1h'}
     yf_interval = interval_map.get(time_interval, '1d')
     
-    st.markdown("### ðŸ”„ Company Reversal Analysis")
+    st.markdown("### 🔄 Company Reversal Analysis")
     st.markdown("---")
-    st.info("ðŸŽ¯ **Find oversold companies** within a sector showing recovery signals. Benchmarked against Nifty 50.")
+    st.info("🎯 **Find oversold companies** within a sector showing recovery signals. Benchmarked against Nifty 50.")
     
     # Sector selector with top reversal as default
     sector_list = list(SECTOR_COMPANIES.keys())
@@ -680,7 +680,7 @@ def display_company_reversal_tab(time_interval='Daily', reversal_weights=None, r
     
     st.markdown(f"**Analysis:** {selected_sector} | Reversal candidates with money flow signals")
     
-    st.info("â„¹ï¸ **Filters:** Using sector-level reversal thresholds from left panel. RSI and ADX_Z thresholds are shared across sector and company analysis.")
+    st.info("ℹ️ **Filters:** Using sector-level reversal thresholds from left panel. RSI and ADX_Z thresholds are shared across sector and company analysis.")
     
     # Note: Company reversal uses the same thresholds from the main sidebar (passed via reversal_weights parameter)
     # No separate company-specific thresholds needed
@@ -690,14 +690,14 @@ def display_company_reversal_tab(time_interval='Daily', reversal_weights=None, r
         companies_data, failed_companies, benchmark_data = fetch_company_data_cached(selected_sector, interval=yf_interval, analysis_date_str=analysis_date_str)
         
         if not companies_data:
-            st.error(f"âŒ No data available for companies in {selected_sector}")
+            st.error(f"❌ No data available for companies in {selected_sector}")
             return
         
         if failed_companies:
-            st.warning(f"âš ï¸ Could not fetch data for: {', '.join(failed_companies)}")
+            st.warning(f"⚠️ Could not fetch data for: {', '.join(failed_companies)}")
     
     if benchmark_data is None or len(benchmark_data) == 0:
-        st.error("âŒ Unable to fetch Nifty 50 benchmark data")
+        st.error("❌ Unable to fetch Nifty 50 benchmark data")
         return
     
     # Build analysis for each company - collect all data first for ranking
@@ -901,17 +901,17 @@ def display_company_reversal_tab(time_interval='Daily', reversal_weights=None, r
         df_display_styled = df_display.style.apply(style_company_reversal_row, axis=1)
         
         # Add color coding legend
-        with st.expander("ðŸ“Š Color Coding Guide for Reversal Indicators"):
+        with st.expander("📊 Color Coding Guide for Reversal Indicators"):
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("**RSI (Relative Strength Index)**")
-                st.markdown("- ðŸŸ¢ **Green (<35)**: Oversold - potential reversal signal")
-                st.markdown("- ðŸŸ¡ **Yellow (35-65)**: Neutral")
-                st.markdown("- ðŸ”´ **Red (>50)**: Overbought")
+                st.markdown("- 🟢 **Green (<35)**: Oversold - potential reversal signal")
+                st.markdown("- 🟡 **Yellow (35-65)**: Neutral")
+                st.markdown("- 🔴 **Red (>50)**: Overbought")
             with col2:
                 st.markdown("**CMF (Chaikin Money Flow)**")
-                st.markdown("- ðŸŸ¢ **Green (>0)**: Positive money flow - buying pressure")
-                st.markdown("- ðŸ”´ **Red (<0)**: Negative money flow - selling pressure")
+                st.markdown("- 🟢 **Green (>0)**: Positive money flow - buying pressure")
+                st.markdown("- 🔴 **Red (<0)**: Negative money flow - selling pressure")
         
         st.dataframe(df_display_styled, use_container_width=True, height=400)
         
@@ -923,15 +923,15 @@ def display_company_reversal_tab(time_interval='Daily', reversal_weights=None, r
         with col1:
             st.metric("Total Reversals", len(company_results))
         with col2:
-            st.metric("ðŸŸ¢ BUY_DIV", buy_div_count)
+            st.metric("🟢 BUY_DIV", buy_div_count)
         with col3:
-            st.metric("ðŸŸ¡ Watch", watch_count)
+            st.metric("🟡 Watch", watch_count)
         
-        st.success(f"âœ… Found {len(company_results)} reversal candidates in {selected_sector}")
+        st.success(f"✅ Found {len(company_results)} reversal candidates in {selected_sector}")
         
         # Company Trend Analysis for Reversals
         st.markdown("---")
-        st.markdown("### ðŸ“Š Company Trend Analysis (T-7 to T)")
+        st.markdown("### 📊 Company Trend Analysis (T-7 to T)")
         
         reversal_symbols = [r['Symbol'] for r in company_results]
         selected_reversal_symbol = st.selectbox("Select a reversal candidate for trend view:", reversal_symbols, key="reversal_company_trend")
@@ -991,7 +991,7 @@ def display_company_reversal_tab(time_interval='Daily', reversal_weights=None, r
                     return ''
                 
                 # Add color code legend for company reversal trend
-                with st.expander("ðŸŽ¨ **Color Code Legend** - Reversal Signals", expanded=True):
+                with st.expander("🎨 **Color Code Legend** - Reversal Signals", expanded=True):
                     col1, col2 = st.columns(2)
                     with col1:
                         st.markdown("**Green (Good for Reversal)**")
@@ -1010,6 +1010,6 @@ def display_company_reversal_tab(time_interval='Daily', reversal_weights=None, r
                 
                 trend_styled = trend_display.style.applymap(style_reversal_company_trend)
                 st.dataframe(trend_styled, use_container_width=True, hide_index=True)
-                st.caption("ðŸ“ˆ **Note:** Dates as columns (T-7 to T), Indicators as rows. Green/Red shows improving/deteriorating signals.")
+                st.caption("📈 **Note:** Dates as columns (T-7 to T), Indicators as rows. Green/Red shows improving/deteriorating signals.")
     else:
-        st.info(f"â„¹ï¸ No reversal candidates found in {selected_sector} at this time")
+        st.info(f"ℹ️ No reversal candidates found in {selected_sector} at this time")

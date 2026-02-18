@@ -1,5 +1,5 @@
 """
-confluence_fixed.py  â€” v3.0
+confluence_fixed.py  — v3.0
 ============================
 Fixes applied in this version
 -------------------------------
@@ -15,12 +15,12 @@ Fixes applied in this version
     get_top_n_sectors_by_momentum() (in streamlit_app.py) is for bullish.
 
 (c) RSI direction enforced:
-    Bullish  â†’ RSI *rising* earns positive pts; RSI *falling* is penalised.
-    Bearish  â†’ RSI *falling* earns positive pts; RSI *rising* is penalised.
+    Bullish  → RSI *rising* earns positive pts; RSI *falling* is penalised.
+    Bearish  → RSI *falling* earns positive pts; RSI *rising* is penalised.
 
 (d) Pivot-based price position (ENTRY TF only):
-    For 4H+1H â†’ use 4H pivot structure.
-    For 1D+2H â†’ use 1D pivot structure.
+    For 4H+1H → use 4H pivot structure.
+    For 1D+2H → use 1D pivot structure.
     2H / 1H conf-TF trend is kept as a display placeholder (weight = 0).
     Entry ideal:  Bullish at HL (Higher Low),  Bearish at LH (Lower High).
 
@@ -37,9 +37,9 @@ import numpy as np
 _GATE_FAIL_SCORE = -5.0
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 # RSI helper
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _calculate_rsi_from_df(data: pd.DataFrame, period: int = 14) -> pd.Series:
     delta = data["Close"].diff()
@@ -49,9 +49,9 @@ def _calculate_rsi_from_df(data: pd.DataFrame, period: int = 14) -> pd.Series:
     return (100.0 - 100.0 / (1.0 + rs)).fillna(50.0)
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# (e) Pivot Points High / Low â€” Python port of Pine-Script ta.pivothigh/low
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
+# (e) Pivot Points High / Low — Python port of Pine-Script ta.pivothigh/low
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _pivot_highs_lows(
     data: pd.DataFrame,
@@ -62,12 +62,12 @@ def _pivot_highs_lows(
     Detect pivot highs and pivot lows.
 
     A bar at index i is a pivot HIGH when its High is the unique highest
-    value in the window [i-left â€¦ i+right].  Same logic for LOW.
+    value in the window [i-left … i+right].  Same logic for LOW.
 
     Returns
     -------
-    ph : list[(bar_index, price)]  â€” confirmed pivot highs
-    pl : list[(bar_index, price)]  â€” confirmed pivot lows
+    ph : list[(bar_index, price)]  — confirmed pivot highs
+    pl : list[(bar_index, price)]  — confirmed pivot lows
     """
     highs = data["High"].values
     lows  = data["Low"].values
@@ -95,9 +95,9 @@ def detect_swing_structure(
 ) -> dict:
     """
     Classify the swing structure of the data into:
-      'Uptrend (HH/HL)'   â€” majority of pivot highs are HH, pivot lows are HL
-      'Downtrend (LL/LH)' â€” majority of pivot lows are LL, pivot highs are LH
-      'Sideways'          â€” neither dominant
+      'Uptrend (HH/HL)'   — majority of pivot highs are HH, pivot lows are HL
+      'Downtrend (LL/LH)' — majority of pivot lows are LL, pivot highs are LH
+      'Sideways'          — neither dominant
 
     Also returns the most-recent pivot low price (last HL candidate)
     and most-recent pivot high price (last LH candidate).
@@ -146,9 +146,9 @@ def detect_swing_structure(
     }
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 # MA / crossover / divergence / volume helpers
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _ma_alignment(price: float, dma20: float, dma50: float) -> str:
     if pd.isna(dma20) or pd.isna(dma50):
@@ -198,15 +198,15 @@ def _volume_status(data: pd.DataFrame, lookback: int = 5) -> str:
         return "N/A"
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 # (d) Price-position: where is the current price relative to last HL / LH?
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _price_position(price: float, swing: dict, threshold_pct: float = 3.0) -> str:
     """
-    'Near HL' â€” within threshold_pct% of last pivot low  â†’ ideal bullish entry
-    'Near LH' â€” within threshold_pct% of last pivot high â†’ ideal bearish entry
-    'Middle'  â€” neither
+    'Near HL' — within threshold_pct% of last pivot low  → ideal bullish entry
+    'Near LH' — within threshold_pct% of last pivot high → ideal bearish entry
+    'Middle'  — neither
     """
     hl = swing.get("last_hl_price")
     lh = swing.get("last_lh_price")
@@ -223,9 +223,9 @@ def _price_position(price: float, swing: dict, threshold_pct: float = 3.0) -> st
     return "Middle"
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# (b) Bottom-N sectors helper â€” weak sectors for bearish picks
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
+# (b) Bottom-N sectors helper — weak sectors for bearish picks
+# ─────────────────────────────────────────────────────────────────────────────
 
 def get_bottom_n_sectors_by_momentum(
     sector_data_dict: dict,
@@ -234,7 +234,7 @@ def get_bottom_n_sectors_by_momentum(
 ) -> list:
     """
     Return the N sectors with the LOWEST RSI + CMF momentum.
-    These are losing momentum â€” candidates for bearish stock selection.
+    These are losing momentum — candidates for bearish stock selection.
     """
     if not sector_data_dict or len(sector_data_dict) < n:
         return list(sector_data_dict.keys()) if sector_data_dict else []
@@ -272,13 +272,13 @@ def get_bottom_n_sectors_by_momentum(
     else:
         df["Score"] = 0.0
 
-    # ascending=True â†’ weakest first
+    # ascending=True → weakest first
     return df.sort_values("Score", ascending=True).head(n)["Sector"].tolist()
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 # Main analysis function
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 
 def analyze_stock_confluence(
     data_1h_or_entry: pd.DataFrame,
@@ -295,8 +295,12 @@ def analyze_stock_confluence(
         if entry_timeframe in ("2h", "4h"):
             freq     = "2H" if entry_timeframe == "2h" else "4H"
             min_bars = 50
+            _src = data_1h_or_entry.copy()
+            # Strip timezone for resample compatibility
+            if hasattr(_src.index, 'tz') and _src.index.tz is not None:
+                _src.index = _src.index.tz_localize(None)
             data_entry = (
-                data_1h_or_entry
+                _src
                 .resample(freq)
                 .agg({"Open": "first", "High": "max", "Low": "min",
                       "Close": "last",  "Volume": "sum"})
@@ -313,6 +317,8 @@ def analyze_stock_confluence(
             return None
 
         data_entry = data_entry.copy()
+        if hasattr(data_entry.index, 'tz') and data_entry.index.tz is not None:
+            data_entry.index = data_entry.index.tz_localize(None)
         data_entry["DMA_20"] = data_entry["Close"].rolling(20).mean()
         data_entry["DMA_50"] = data_entry["Close"].rolling(50).mean()
         rsi_e_s = _calculate_rsi_from_df(data_entry)
@@ -324,6 +330,8 @@ def analyze_stock_confluence(
         rsi_ep  = float(rsi_e_s.iloc[-2]) if len(rsi_e_s.dropna()) >= 2 else rsi_e
 
         data_1d = data_1d.copy()
+        if hasattr(data_1d.index, 'tz') and data_1d.index.tz is not None:
+            data_1d.index = data_1d.index.tz_localize(None)
         data_1d["DMA_20"] = data_1d["Close"].rolling(20).mean()
         data_1d["DMA_50"] = data_1d["Close"].rolling(50).mean()
         rsi_d_s = _calculate_rsi_from_df(data_1d)
@@ -443,11 +451,11 @@ def calculate_confluence_score_bullish(analysis: dict) -> tuple:
     if pos == "Near HL":
         score += 3
         lbl = f"{hl_price:.2f}" if hl_price else "?"
-        reasons.append(f"+3  Price near HL pivot ({lbl}) â€” ideal BUY")
+        reasons.append(f"+3  Price near HL pivot ({lbl}) — ideal BUY")
     elif pos == "Near LH":
         score -= 1
         lbl = f"{lh_price:.2f}" if lh_price else "?"
-        reasons.append(f"âˆ’1  Price near LH pivot ({lbl}) â€” near resistance")
+        reasons.append(f"−1  Price near LH pivot ({lbl}) — near resistance")
     else:
         score += 0.5; reasons.append("+0.5 Price in middle range")
 
@@ -455,13 +463,13 @@ def calculate_confluence_score_bullish(analysis: dict) -> tuple:
     rising  = rising_entry
     falling = rsi_e < rsi_ep - 0.5
     if rising and 40 <= rsi_e <= 70:
-        score += 2;   reasons.append(f"+2  RSI rising in 40â€“70 zone ({rsi_e})")
+        score += 2;   reasons.append(f"+2  RSI rising in 40–70 zone ({rsi_e})")
     elif rising:
         score += 1;   reasons.append(f"+1  RSI rising ({rsi_e})")
     elif falling:
-        score -= 1;   reasons.append(f"âˆ’1  RSI FALLING ({rsi_e}) â€” wrong for bullish")
+        score -= 1;   reasons.append(f"−1  RSI FALLING ({rsi_e}) — wrong for bullish")
     if rsi_e > 70:
-        score -= 1;   reasons.append(f"âˆ’1  RSI overbought ({rsi_e})")
+        score -= 1;   reasons.append(f"−1  RSI overbought ({rsi_e})")
     elif rsi_e < 30 and rising:
         score += 0.5; reasons.append(f"+0.5 RSI oversold but turning up ({rsi_e})")
 
@@ -469,26 +477,26 @@ def calculate_confluence_score_bullish(analysis: dict) -> tuple:
     rsid  = rsi_d
     rsidp = rsi_dp
     if rsid > rsidp + 0.5 and 40 <= rsid <= 70:
-        score += 1.5; reasons.append(f"+1.5 Conf RSI rising in 40â€“70 ({rsid})")
+        score += 1.5; reasons.append(f"+1.5 Conf RSI rising in 40–70 ({rsid})")
     elif rsid > rsidp + 0.5:
         score += 0.5; reasons.append(f"+0.5 Conf RSI rising ({rsid})")
     elif rsid < rsidp - 0.5:
-        score -= 0.5; reasons.append(f"âˆ’0.5 Conf RSI falling ({rsid})")
+        score -= 0.5; reasons.append(f"−0.5 Conf RSI falling ({rsid})")
     if rsid > 70:
-        score -= 0.5; reasons.append(f"âˆ’0.5 Conf RSI overbought ({rsid})")
+        score -= 0.5; reasons.append(f"−0.5 Conf RSI overbought ({rsid})")
 
     # MA crossover & divergence / volume as supporting factors
     xo = analysis["ma_crossover_entry"]
     if xo == "Bullish Crossover":
         score += 1.5; reasons.append("+1.5 Bullish MA crossover forming")
     elif xo == "Bearish Crossover":
-        score -= 1;   reasons.append("âˆ’1  Bearish MA crossover forming")
+        score -= 1;   reasons.append("−1  Bearish MA crossover forming")
 
     div = analysis["divergence"]
     if div == "Bullish":
         score += 1.5; reasons.append("+1.5 Bullish RSI divergence")
     elif div == "Bearish":
-        score -= 1;   reasons.append("âˆ’1  Bearish RSI divergence")
+        score -= 1;   reasons.append("−1  Bearish RSI divergence")
 
     vol = analysis.get("volume_status", "N/A")
     if vol == "High":
@@ -506,7 +514,7 @@ def calculate_confluence_score_bearish(analysis: dict) -> tuple:
     if t == "Downtrend (LL/LH)":
         score += 4;  reasons.append("+4  Downtrend (LL/LH) on entry TF")
     elif t == "Uptrend (HH/HL)":
-        score -= 3;  reasons.append("âˆ’3  Uptrend on entry TF â€” penalised")
+        score -= 3;  reasons.append("−3  Uptrend on entry TF — penalised")
     else:
         score += 0.5; reasons.append("+0.5 Sideways entry TF")
 
@@ -514,13 +522,13 @@ def calculate_confluence_score_bearish(analysis: dict) -> tuple:
     if ma == "Bearish":
         score += 3;  reasons.append("+3  MA Bearish on entry TF")
     elif ma == "Bullish":
-        score -= 2;  reasons.append("âˆ’2  MA Bullish on entry TF")
+        score -= 2;  reasons.append("−2  MA Bullish on entry TF")
 
     ma1 = analysis["ma_alignment_1d"]
     if ma1 == "Bearish":
         score += 2;  reasons.append("+2  MA Bearish on conf TF")
     elif ma1 == "Bullish":
-        score -= 1;   reasons.append("âˆ’1  MA Bullish on conf TF")
+        score -= 1;   reasons.append("−1  MA Bullish on conf TF")
 
     pos      = analysis.get("price_position", "Middle")
     hl_price = analysis.get("last_hl_price")
@@ -528,11 +536,11 @@ def calculate_confluence_score_bearish(analysis: dict) -> tuple:
     if pos == "Near LH":
         score += 3
         lbl = f"{lh_price:.2f}" if lh_price else "?"
-        reasons.append(f"+3  Price near LH pivot ({lbl}) â€” ideal SHORT")
+        reasons.append(f"+3  Price near LH pivot ({lbl}) — ideal SHORT")
     elif pos == "Near HL":
         score -= 2
         lbl = f"{hl_price:.2f}" if hl_price else "?"
-        reasons.append(f"âˆ’2  Price near HL ({lbl}) â€” at support, too late to short")
+        reasons.append(f"−2  Price near HL ({lbl}) — at support, too late to short")
     else:
         score += 0.5; reasons.append("+0.5 Price in middle range")
 
@@ -548,41 +556,41 @@ def calculate_confluence_score_bearish(analysis: dict) -> tuple:
         elif rsi > 70:
             score += 1;   reasons.append(f"+1  RSI overbought at resistance ({rsi})")
         elif rsi < 30:
-            score -= 1.5; reasons.append(f"âˆ’1.5 RSI oversold at LH â€” suspicious ({rsi})")
+            score -= 1.5; reasons.append(f"−1.5 RSI oversold at LH — suspicious ({rsi})")
         elif rising:
-            score -= 1;   reasons.append(f"âˆ’1  RSI RISING at resistance ({rsi})")
+            score -= 1;   reasons.append(f"−1  RSI RISING at resistance ({rsi})")
     else:
         if falling and 30 <= rsi <= 60:
-            score += 2;   reasons.append(f"+2  RSI falling in 30â€“60 zone ({rsi})")
+            score += 2;   reasons.append(f"+2  RSI falling in 30–60 zone ({rsi})")
         elif falling:
             score += 1;   reasons.append(f"+1  RSI falling ({rsi})")
         elif rising:
-            score -= 1;   reasons.append(f"âˆ’1  RSI RISING ({rsi}) â€” wrong for bearish")
+            score -= 1;   reasons.append(f"−1  RSI RISING ({rsi}) — wrong for bearish")
         if rsi < 30:
-            score -= 1;   reasons.append(f"âˆ’1  RSI oversold ({rsi}) â€” late entry")
+            score -= 1;   reasons.append(f"−1  RSI oversold ({rsi}) — late entry")
 
     rsid  = analysis["rsi_1d"]
     rsidp = analysis["rsi_1d_prev"]
     if rsid < rsidp - 0.5 and 30 <= rsid <= 60:
-        score += 1.5; reasons.append(f"+1.5 Conf RSI falling in 30â€“60 ({rsid})")
+        score += 1.5; reasons.append(f"+1.5 Conf RSI falling in 30–60 ({rsid})")
     elif rsid < rsidp - 0.5:
         score += 0.5; reasons.append(f"+0.5 Conf RSI falling ({rsid})")
     elif rsid > rsidp + 0.5:
-        score -= 0.5; reasons.append(f"âˆ’0.5 Conf RSI rising ({rsid})")
+        score -= 0.5; reasons.append(f"−0.5 Conf RSI rising ({rsid})")
     if rsid < 30:
-        score -= 0.5; reasons.append(f"âˆ’0.5 Conf RSI oversold ({rsid})")
+        score -= 0.5; reasons.append(f"−0.5 Conf RSI oversold ({rsid})")
 
     xo = analysis["ma_crossover_entry"]
     if xo == "Bearish Crossover":
         score += 1.5; reasons.append("+1.5 Bearish MA crossover forming")
     elif xo == "Bullish Crossover":
-        score -= 1;   reasons.append("âˆ’1  Bullish MA crossover forming")
+        score -= 1;   reasons.append("−1  Bullish MA crossover forming")
 
     div = analysis["divergence"]
     if div == "Bearish":
         score += 1.5; reasons.append("+1.5 Bearish RSI divergence")
     elif div == "Bullish":
-        score -= 1;   reasons.append("âˆ’1  Bullish RSI divergence")
+        score -= 1;   reasons.append("−1  Bullish RSI divergence")
 
     vol = analysis.get("volume_status", "N/A")
     if vol == "High" and pos == "Near LH":
@@ -608,7 +616,7 @@ def generate_entry_description(analysis: dict, score: float, is_bullish: bool = 
             ref = f" ({hl:.2f})" if hl else ""
             return f"{grade}: Uptrend + Price at HL support{ref} + Rising RSI"
         elif pos == "Near LH":
-            return f"{grade}: Uptrend but price near LH resistance â€” caution"
+            return f"{grade}: Uptrend but price near LH resistance — caution"
         return f"{grade}: Strong uptrend + Bullish alignment + Rising momentum"
     else:
         if pos == "Near LH":
@@ -616,7 +624,7 @@ def generate_entry_description(analysis: dict, score: float, is_bullish: bool = 
             return f"{grade}: Downtrend + Price at LH resistance{ref} + Falling RSI"
         elif pos == "Near HL":
             ref = f" ({hl:.2f})" if hl else ""
-            return f"TOO LATE: Price at HL{ref} â€” missed SHORT entry"
+            return f"TOO LATE: Price at HL{ref} — missed SHORT entry"
         return f"{grade}: Downtrend + Bearish alignment + Falling momentum"
 
 
