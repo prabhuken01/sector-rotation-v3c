@@ -2,11 +2,11 @@
 """
 NSE Market Sector Analysis Tool - Streamlit Web Interface
 Enhanced with configurable weights, ETF proxy, and improved aesthetics
-Version: 3.0 - Stock Rotation v3 (corrected sector mapping, per-date historical confluence, end_date fix)
+Version: 2.3.5 - Confluence fallback when screener has no rows (Feb 2026)
 """
 
 # Visible app version (shown on main page for deploy verification)
-APP_VERSION = "3.0"
+APP_VERSION = "2.3.5"
 
 import os
 import streamlit as st
@@ -132,7 +132,7 @@ try:
         display_company_reversal_tab,
     )
 except ImportError as e:
-    st.error(f"âŒ Import Error: {str(e)}")
+    st.error(f"❌ Import Error: {str(e)}")
     st.info("Please ensure all required modules are installed: yfinance, pandas, numpy")
     st.stop()
 
@@ -140,7 +140,7 @@ except ImportError as e:
 # Page configuration
 st.set_page_config(
     page_title="NSE Market Sector Analysis",
-    page_icon="ðŸ“Š",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -231,12 +231,12 @@ INDICATOR_TOOLTIPS = {
 def get_column_with_tooltip(col_name, show_tooltip=True):
     """Return column name with tooltip hover text."""
     if show_tooltip and col_name in INDICATOR_TOOLTIPS:
-        return f"{col_name} â„¹ï¸"
+        return f"{col_name} ℹ️"
     return col_name
 
 def display_tooltip_legend():
     """Display tooltip legend at bottom of page."""
-    with st.expander("ðŸ“‹ **Indicator Definitions** (Click to expand)", expanded=False):
+    with st.expander("📋 **Indicator Definitions** (Click to expand)", expanded=False):
         cols = st.columns(2)
         indicators = list(INDICATOR_TOOLTIPS.items())
         for idx, (indicator, tooltip) in enumerate(indicators):
@@ -246,10 +246,10 @@ def display_tooltip_legend():
 
 def get_sidebar_controls():
     """Create sidebar controls for user configuration."""
-    st.sidebar.header("âš™ï¸ Analysis Settings")
+    st.sidebar.header("⚙️ Analysis Settings")
     
     # Date selection with navigation
-    st.sidebar.subheader("ðŸ“… Select Analysis Date")
+    st.sidebar.subheader("📅 Select Analysis Date")
     
     # Initialize session state for date if not exists
     if 'analysis_date_state' not in st.session_state:
@@ -271,15 +271,15 @@ def get_sidebar_controls():
     col_left, col_middle, col_right = st.sidebar.columns([1, 2, 1])
     
     with col_left:
-        if st.button("â¬…ï¸", key="btn_prev_date", use_container_width=True, help="Previous day"):
+        if st.button("⬅️", key="btn_prev_date", use_container_width=True, help="Previous day"):
             st.session_state.analysis_date_state = st.session_state.analysis_date_state - timedelta(days=1)
             st.rerun()
     
     with col_middle:
-        st.caption(f"ðŸ“† {st.session_state.analysis_date_state.strftime('%b %d')}")
+        st.caption(f"📆 {st.session_state.analysis_date_state.strftime('%b %d')}")
     
     with col_right:
-        if st.button("âž¡ï¸", key="btn_next_date", use_container_width=True, help="Next day"):
+        if st.button("➡️", key="btn_next_date", use_container_width=True, help="Next day"):
             if st.session_state.analysis_date_state < datetime.now().date():
                 st.session_state.analysis_date_state = st.session_state.analysis_date_state + timedelta(days=1)
                 st.rerun()
@@ -290,7 +290,7 @@ def get_sidebar_controls():
     analysis_date = st.session_state.analysis_date_state
     
     # Color coding toggle
-    st.sidebar.subheader("ðŸ“Š Display Options")
+    st.sidebar.subheader("📊 Display Options")
     enable_color_coding = st.sidebar.checkbox("Enable Bullish/Bearish Colors", value=True,
                                                help="Color code cells to highlight strong/weak signals")
     
@@ -339,7 +339,7 @@ def get_sidebar_controls():
             'DI_Spread': 0.0
         }
         total_momentum_weight = 100.0
-        st.sidebar.success(f"âœ… Weights sum to {total_momentum_weight:.1f}%")
+        st.sidebar.success(f"✅ Weights sum to {total_momentum_weight:.1f}%")
     else:
         st.sidebar.caption("Historical: RS Rating, ADX Z, RSI, DI Spread. CMF = 0%.")
         rs_weight = st.sidebar.slider("RS Rating Weight (%)", 0.0, 100.0, 
@@ -353,9 +353,9 @@ def get_sidebar_controls():
         st.sidebar.caption("CMF Weight: **0%** (fixed in Historical)")
         total_momentum_weight = adx_weight + rs_weight + rsi_momentum_weight + di_spread_weight
         if abs(total_momentum_weight - 100.0) > 0.1:
-            st.sidebar.warning(f"âš ï¸ Weights sum to {total_momentum_weight:.1f}% (should be 100%)")
+            st.sidebar.warning(f"⚠️ Weights sum to {total_momentum_weight:.1f}% (should be 100%)")
         else:
-            st.sidebar.success(f"âœ… Weights sum to {total_momentum_weight:.1f}%")
+            st.sidebar.success(f"✅ Weights sum to {total_momentum_weight:.1f}%")
         momentum_weights = {
             'ADX_Z': adx_weight,
             'RS_Rating': rs_weight,
@@ -387,9 +387,9 @@ def get_sidebar_controls():
     # Calculate and display total
     total_reversal_weight = rs_ranking_weight + cmf_reversal_weight + rsi_reversal_weight + adx_z_reversal_weight
     if abs(total_reversal_weight - 100.0) > 0.1:
-        st.sidebar.warning(f"âš ï¸ Weights sum to {total_reversal_weight:.1f}% (should be 100%)")
+        st.sidebar.warning(f"⚠️ Weights sum to {total_reversal_weight:.1f}% (should be 100%)")
     else:
-        st.sidebar.success(f"âœ… Weights sum to {total_reversal_weight:.1f}%")
+        st.sidebar.success(f"✅ Weights sum to {total_reversal_weight:.1f}%")
     
     reversal_weights = {
         'RS_Rating': rs_ranking_weight,
@@ -463,7 +463,7 @@ def analyze_sectors_with_progress(use_etf, momentum_weights, reversal_weights, a
         analysis_date_str = analysis_date.strftime('%Y-%m-%d') if analysis_date else None
         
         # Show loading spinner during data fetch
-        with st.spinner(f"ðŸ”„ Fetching {time_interval.lower()} sector data..."):
+        with st.spinner(f"🔄 Fetching {time_interval.lower()} sector data..."):
             # Use cached parallel fetch
             sector_data, failed_sectors = fetch_all_sector_data_cached(
                 data_source_key, 
@@ -476,23 +476,23 @@ def analyze_sectors_with_progress(use_etf, momentum_weights, reversal_weights, a
         benchmark_data = sector_data.get('Nifty 50')
         
         if benchmark_data is None:
-            st.error("âŒ Failed to fetch benchmark data (Nifty 50). Please check internet connection and try again.")
+            st.error("❌ Failed to fetch benchmark data (Nifty 50). Please check internet connection and try again.")
             return None, None, None
         
         if len(benchmark_data) == 0:
-            st.error("âŒ Benchmark data is empty. No data available for Nifty 50.")
+            st.error("❌ Benchmark data is empty. No data available for Nifty 50.")
             return None, None, None
         
         if failed_sectors:
             # Display only first 3 failed sectors
             failed_display = failed_sectors[:3]
             if len(failed_sectors) > 3:
-                st.info(f"âš ï¸ Failed to fetch data for: {', '.join(failed_display)}, and {len(failed_sectors) - 3} more")
+                st.info(f"⚠️ Failed to fetch data for: {', '.join(failed_display)}, and {len(failed_sectors) - 3} more")
             elif failed_display:
-                st.info(f"âš ï¸ Failed to fetch data for: {', '.join(failed_display)}")
+                st.info(f"⚠️ Failed to fetch data for: {', '.join(failed_display)}")
         
         if len(sector_data) <= 1:  # Only benchmark
-            st.error("âŒ No sector data available for analysis. Please check your internet connection.")
+            st.error("❌ No sector data available for analysis. Please check your internet connection.")
             return None, None, None
         
         # Store the last market date from the data with proper interval logic
@@ -509,29 +509,29 @@ def analyze_sectors_with_progress(use_etf, momentum_weights, reversal_weights, a
             market_date = "N/A"
         
         # Analyze all sectors (excludes Nifty 50 from rankings)
-        with st.spinner("ðŸ“Š Analyzing sectors..."):
+        with st.spinner("📊 Analyzing sectors..."):
             try:
                 df = analyze_all_sectors(sector_data, benchmark_data, momentum_weights, reversal_weights, data_source, yf_interval, reversal_thresholds)
             except Exception as e:
-                st.error(f"âŒ Analysis failed: {str(e)}")
+                st.error(f"❌ Analysis failed: {str(e)}")
                 st.info("Please try again or adjust the parameters.")
                 return None, None, None
         
         if df is None or df.empty:
-            st.error("âŒ Analysis returned empty results. Please try again.")
+            st.error("❌ Analysis returned empty results. Please try again.")
             return None, None, None
         
         # Format results
         try:
             df = format_results_dataframe(df)
         except Exception as e:
-            st.error(f"âŒ Error formatting results: {str(e)}")
+            st.error(f"❌ Error formatting results: {str(e)}")
             return None, None, None
         
         return df, sector_data, market_date
         
     except Exception as e:
-        st.error(f"âŒ Unexpected error during analysis: {str(e)}")
+        st.error(f"❌ Unexpected error during analysis: {str(e)}")
         st.text(traceback.format_exc())
         return None, None, None
 
@@ -738,7 +738,7 @@ def calculate_sector_trend(sector_name, data, benchmark_data, all_sector_data, p
                         'Rank': int(period_df['Momentum_Score'].rank(ascending=False, method='min')[sector_row.index[0]])
                     })
             except Exception as e:
-                st.warning(f"âš ï¸ Error calculating period {period_label}: {str(e)}")
+                st.warning(f"⚠️ Error calculating period {period_label}: {str(e)}")
                 continue
         
         if not trend_data:
@@ -748,7 +748,7 @@ def calculate_sector_trend(sector_name, data, benchmark_data, all_sector_data, p
         return df
         
     except Exception as e:
-        st.warning(f"âš ï¸ Error calculating trend: {str(e)}")
+        st.warning(f"⚠️ Error calculating trend: {str(e)}")
         return None
 
 
@@ -865,8 +865,8 @@ def calculate_reversal_trend(sector_name, data, benchmark_data, all_sector_data,
                 if len(eligible_reversals) > 0:
                     num_eligible = len(eligible_reversals)
                     # Calculate ranks within eligible sectors
-                    # Lower RS_Rating, RSI, ADX_Z are better for reversals â†’ rank ascending=True (lowest = rank 1)
-                    # Higher CMF is better â†’ rank ascending=False (highest = rank 1)
+                    # Lower RS_Rating, RSI, ADX_Z are better for reversals → rank ascending=True (lowest = rank 1)
+                    # Higher CMF is better → rank ascending=False (highest = rank 1)
                     eligible_reversals['RS_Rating_Rank'] = eligible_reversals['RS_Rating'].rank(ascending=True, method='min')
                     eligible_reversals['CMF_Rank'] = eligible_reversals['CMF'].rank(ascending=False, method='min')
                     eligible_reversals['RSI_Rank'] = eligible_reversals['RSI'].rank(ascending=True, method='min')
@@ -939,7 +939,7 @@ def calculate_reversal_trend(sector_name, data, benchmark_data, all_sector_data,
                         'Rank': rank
                     })
             except Exception as e:
-                st.warning(f"âš ï¸ Error calculating period {period_label}: {str(e)}")
+                st.warning(f"⚠️ Error calculating period {period_label}: {str(e)}")
                 continue
         
         if not trend_data:
@@ -949,7 +949,7 @@ def calculate_reversal_trend(sector_name, data, benchmark_data, all_sector_data,
         return df
         
     except Exception as e:
-        st.warning(f"âš ï¸ Error calculating reversal trend: {str(e)}")
+        st.warning(f"⚠️ Error calculating reversal trend: {str(e)}")
         return None
 
 
@@ -980,7 +980,7 @@ def calculate_historical_momentum_performance(sector_data_dict, benchmark_data, 
             # For hourly, limited history, use what's available
             lookback_periods = min(len(benchmark_data) - 20, 500)
         else:  # Daily
-            # For daily, 6 months â‰ˆ 126 trading days
+            # For daily, 6 months ≈ 126 trading days
             lookback_periods = min(126, len(benchmark_data) - 20)
         
         if lookback_periods < 10:
@@ -1136,7 +1136,7 @@ def calculate_historical_momentum_performance(sector_data_dict, benchmark_data, 
         return pd.DataFrame(historical_results)
         
     except Exception as e:
-        st.warning(f"âš ï¸ Error calculating historical performance: {str(e)}")
+        st.warning(f"⚠️ Error calculating historical performance: {str(e)}")
         return None
 
 
@@ -1169,7 +1169,7 @@ def calculate_historical_reversal_performance(sector_data_dict, benchmark_data, 
             # For hourly, limited history, use what's available
             lookback_periods = min(len(benchmark_data) - 20, 500)
         else:  # Daily
-            # For daily, 6 months â‰ˆ 126 trading days
+            # For daily, 6 months ≈ 126 trading days
             lookback_periods = min(126, len(benchmark_data) - 20)
         
         if lookback_periods < 10:
@@ -1306,13 +1306,13 @@ def calculate_historical_reversal_performance(sector_data_dict, benchmark_data, 
         return pd.DataFrame(historical_results)
         
     except Exception as e:
-        st.warning(f"âš ï¸ Error calculating historical reversal performance: {str(e)}")
+        st.warning(f"⚠️ Error calculating historical reversal performance: {str(e)}")
         return None
 
 
 def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_coding=True):
     """Display momentum ranking tab with improved formatting."""
-    st.markdown("### ðŸ“ˆ Momentum Ranking (Sorted by Momentum Score)")
+    st.markdown("### 📈 Momentum Ranking (Sorted by Momentum Score)")
     st.markdown("---")
     
     # Store original df for reference in trend analysis
@@ -1419,7 +1419,7 @@ def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_codi
             ),
             "Momentum_Score": st.column_config.NumberColumn(
                 "Momentum Score",
-                help="Ranking-based composite score: (ADX_Z Rank Ã— 20%) + (RS_Rating Rank Ã— 40%) + (RSI Rank Ã— 30%) + (DI_Spread Rank Ã— 10%). Higher is better.",
+                help="Ranking-based composite score: (ADX_Z Rank × 20%) + (RS_Rating Rank × 40%) + (RSI Rank × 30%) + (DI_Spread Rank × 10%). Higher is better.",
                 format="%.1f"
             ),
             "Mansfield_RS": st.column_config.NumberColumn(
@@ -1483,13 +1483,13 @@ def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_codi
     with metric_col4:
         # CMF Sum Total - indicates overall sector rotation direction
         cmf_sum = momentum_df_numeric['CMF'].sum()
-        cmf_delta = "â†‘ Net Inflow" if cmf_sum > 0 else "â†“ Net Outflow"
+        cmf_delta = "↑ Net Inflow" if cmf_sum > 0 else "↓ Net Outflow"
         st.metric("CMF Sum (Sector Rotation)", f"{cmf_sum:.2f}", delta=cmf_delta,
                   help="Sum of all sector CMF values. Positive = net money flowing into sectors (bullish rotation), Negative = net money flowing out (bearish rotation). Value near 1 indicates clear sector rotation.")
     
     # Sector Trend Analysis
     st.markdown("---")
-    st.markdown("### ðŸ“Š Sector Trend Analysis (T-7 to T)")
+    st.markdown("### 📊 Sector Trend Analysis (T-7 to T)")
     
     # Find #1 ranked sector and set as default
     # The #1 sector is the one with the highest Momentum_Score
@@ -1526,7 +1526,7 @@ def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_codi
                     st.metric("Current Rank", f"#{int(current_row['Rank'].iloc[0])}")
             
             # Add note about momentum score calculation
-            st.caption("âœ… **Note:** All Momentum Scores are actual rank-based values calculated by comparing all sectors at each historical period. This shows the true momentum evolution over time.")
+            st.caption("✅ **Note:** All Momentum Scores are actual rank-based values calculated by comparing all sectors at each historical period. This shows the true momentum evolution over time.")
             
             # Transpose for better view with color coding
             trend_display = trend_df.set_index('Period').T
@@ -1577,7 +1577,7 @@ def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_codi
                 return ''
             
             # Add color code legend for sector trend analysis
-            with st.expander("ðŸŽ¨ **Color Code Legend** - Bullish/Bearish Signals", expanded=True):
+            with st.expander("🎨 **Color Code Legend** - Bullish/Bearish Signals", expanded=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Green (Bullish Signals)**")
@@ -1633,13 +1633,13 @@ def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_codi
     
     # Historical Top 2 Momentum Performance
     st.markdown("---")
-    st.markdown("### ðŸ“Š Historical Top 2 Momentum Performance (6 Months)")
+    st.markdown("### 📊 Historical Top 2 Momentum Performance (6 Months)")
     st.markdown("See how the top 2 momentum-ranked sectors performed over the past 6 months with forward returns.")
     
-    st.info("ðŸ’¡ **Note:** Historical rankings are recalculated point-in-time using data available on each date. "
-            "Live analysis may differ slightly due to data updates. Use the 'ðŸ“… Historical Rankings' tab for recent T-7 to T comparison.")
+    st.info("💡 **Note:** Historical rankings are recalculated point-in-time using data available on each date. "
+            "Live analysis may differ slightly due to data updates. Use the '📅 Historical Rankings' tab for recent T-7 to T comparison.")
     
-    if st.button("ðŸ” Generate Historical Performance Report"):
+    if st.button("🔍 Generate Historical Performance Report"):
         with st.spinner("Analyzing 6 months of historical data..."):
             # Get interval from session state or default
             interval_map = {'Daily': '1d', 'Weekly': '1wk', 'Hourly': '1h'}
@@ -1662,7 +1662,7 @@ def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_codi
             )
         
         if historical_df is not None and not historical_df.empty:
-            st.success(f"âœ… Generated report for {len(historical_df)} historical dates")
+            st.success(f"✅ Generated report for {len(historical_df)} historical dates")
             
             # Display summary statistics
             col1, col2, col3, col4 = st.columns(4)
@@ -1691,18 +1691,18 @@ def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_codi
             # Download button
             csv_historical = historical_df.to_csv(index=False)
             st.download_button(
-                label="ðŸ“¥ Download Historical Performance Report",
+                label="📥 Download Historical Performance Report",
                 data=csv_historical,
                 file_name=f"historical_momentum_performance_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv"
             )
         else:
-            st.warning("âš ï¸ Unable to generate historical report. Insufficient data available.")
+            st.warning("⚠️ Unable to generate historical report. Insufficient data available.")
     
     # Download button
     csv = momentum_df.to_csv(index=False)
     st.download_button(
-        label="ðŸ“¥ Download Momentum Data",
+        label="📥 Download Momentum Data",
         data=csv,
         file_name=f"momentum_ranking_{datetime.now().strftime('%Y%m%d')}.csv",
         mime="text/csv"
@@ -1711,7 +1711,7 @@ def display_momentum_tab(df, sector_data_dict, benchmark_data, enable_color_codi
 
 def display_reversal_tab(df, sector_data_dict, benchmark_data, reversal_weights, reversal_thresholds, enable_color_coding=True):
     """Display reversal candidates tab with scoring and trend analysis."""
-    st.markdown("### ðŸ”„ Reversal Candidates (Bottom Fishing Opportunities)")
+    st.markdown("### 🔄 Reversal Candidates (Bottom Fishing Opportunities)")
     st.markdown("---")
     
     # Select columns: include Price and Change % now
@@ -1848,20 +1848,20 @@ def display_reversal_tab(df, sector_data_dict, benchmark_data, reversal_weights,
         # Download button
         csv = reversal_candidates.to_csv(index=False)
         st.download_button(
-            label="ðŸ“¥ Download Reversal Candidates",
+            label="📥 Download Reversal Candidates",
             data=csv,
             file_name=f"reversal_candidates_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
     else:
-        st.info("â„¹ï¸ No reversal candidates found at this time.")
+        st.info("ℹ️ No reversal candidates found at this time.")
     
     # Historical Top 2 Reversal Performance
     st.markdown("---")
-    st.markdown("### ðŸ“Š Historical Top 2 Reversal Candidate Performance (6 Months)")
+    st.markdown("### 📊 Historical Top 2 Reversal Candidate Performance (6 Months)")
     st.markdown("See which sectors were identified as top reversal candidates over the past 6 months.")
     
-    if st.button("ðŸ” Generate Historical Reversal Report", key="btn_historical_reversal"):
+    if st.button("🔍 Generate Historical Reversal Report", key="btn_historical_reversal"):
         with st.spinner("Analyzing 6 months of historical reversal data..."):
             # Get interval from session state or default
             interval_map = {'Daily': '1d', 'Weekly': '1wk', 'Hourly': '1h'}
@@ -1878,7 +1878,7 @@ def display_reversal_tab(df, sector_data_dict, benchmark_data, reversal_weights,
             )
         
         if historical_reversal_df is not None and not historical_reversal_df.empty:
-            st.success(f"âœ… Generated report for {len(historical_reversal_df)} historical dates")
+            st.success(f"✅ Generated report for {len(historical_reversal_df)} historical dates")
             
             # Display the dataframe
             st.dataframe(
@@ -1913,18 +1913,18 @@ def display_reversal_tab(df, sector_data_dict, benchmark_data, reversal_weights,
             # Download button
             csv_historical_reversal = historical_reversal_df.to_csv(index=False)
             st.download_button(
-                label="ðŸ“¥ Download Historical Top 2 Reversal Candidates (6 Months)",
+                label="📥 Download Historical Top 2 Reversal Candidates (6 Months)",
                 data=csv_historical_reversal,
                 file_name=f"historical_reversal_candidates_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
                 key="download_historical_reversal"
             )
         else:
-            st.warning("âš ï¸ Unable to generate historical reversal report. Insufficient data available.")
+            st.warning("⚠️ Unable to generate historical reversal report. Insufficient data available.")
     
     # Sector Trend Analysis for Reversals
     st.markdown("---")
-    st.markdown("### ðŸ“Š Sector Trend Analysis - Reversal Metrics (T-7 to T)")
+    st.markdown("### 📊 Sector Trend Analysis - Reversal Metrics (T-7 to T)")
     
     sectors_list = sorted(df['Sector'].tolist())
     selected_reversal_sector = st.selectbox(
@@ -1997,7 +1997,7 @@ def display_reversal_tab(df, sector_data_dict, benchmark_data, reversal_weights,
                     return ''
                 
                 # Add color code legend for reversal trend analysis
-                with st.expander("ðŸŽ¨ **Color Code Legend** - Reversal Signals", expanded=True):
+                with st.expander("🎨 **Color Code Legend** - Reversal Signals", expanded=True):
                     col1, col2 = st.columns(2)
                     with col1:
                         st.markdown("**Green (Good for Reversal)**")
@@ -2024,16 +2024,16 @@ def display_reversal_tab(df, sector_data_dict, benchmark_data, reversal_weights,
                 # Download button for reversal trend
                 reversal_trend_csv = reversal_trend_df.to_csv(index=False)
                 st.download_button(
-                    label=f"ðŸ“¥ Download {selected_reversal_sector} Reversal Trend",
+                    label=f"📥 Download {selected_reversal_sector} Reversal Trend",
                     data=reversal_trend_csv,
                     file_name=f"reversal_trend_{selected_reversal_sector}_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv",
                     key="download_reversal_trend"
                 )
             else:
-                st.info(f"â„¹ï¸ Unable to calculate reversal trend for {selected_reversal_sector}. Insufficient data.")
+                st.info(f"ℹ️ Unable to calculate reversal trend for {selected_reversal_sector}. Insufficient data.")
         else:
-            st.warning(f"âš ï¸ No data available for {selected_reversal_sector}")
+            st.warning(f"⚠️ No data available for {selected_reversal_sector}")
     
     # Show all sectors with reversal scores (regardless of filters)
     st.markdown("---")
@@ -2078,7 +2078,7 @@ def display_reversal_tab(df, sector_data_dict, benchmark_data, reversal_weights,
 
 def display_interpretation_tab():
     """Display interpretation guide tab."""
-    st.markdown("### ðŸ“Š Interpretation Guide")
+    st.markdown("### 📊 Interpretation Guide")
     st.markdown("---")
     
     col1, col2 = st.columns(2)
@@ -2088,10 +2088,10 @@ def display_interpretation_tab():
         #### Momentum Score
         **Formula:** Ranking-based composite score
         ```
-        (ADX_Z Rank Ã— 20%) + 
-        (RS_Rating Rank Ã— 40%) + 
-        (RSI Rank Ã— 30%) + 
-        (DI_Spread Rank Ã— 10%)
+        (ADX_Z Rank × 20%) + 
+        (RS_Rating Rank × 40%) + 
+        (RSI Rank × 30%) + 
+        (DI_Spread Rank × 10%)
         ```
         
         - Sectors are ranked on each indicator (1 = lowest, N = highest)
@@ -2104,10 +2104,10 @@ def display_interpretation_tab():
         momentum scores but should be watched carefully.
         
         #### Mansfield Relative Strength
-        **Formula:** `((RS_Ratio / RS_Ratio_MA) - 1) Ã— 10`
+        **Formula:** `((RS_Ratio / RS_Ratio_MA) - 1) × 10`
         
-        - ðŸŸ¢ **> 0**: Outperforming Nifty 50
-        - ðŸ”´ **< 0**: Underperforming Nifty 50
+        - 🟢 **> 0**: Outperforming Nifty 50
+        - 🔴 **< 0**: Underperforming Nifty 50
         - Based on 52-week (250-day) moving average
         
         #### Reversal Score
@@ -2121,7 +2121,7 @@ def display_interpretation_tab():
     with col2:
         st.markdown("""
         #### Reversal Status
-        **âš ï¸ For Reversal Candidates (Bottom Fishing):**
+        **⚠️ For Reversal Candidates (Bottom Fishing):**
         
         Look for sectors showing:
         - **BUY_DIV** = Strong buy divergence (Best)
@@ -2164,7 +2164,7 @@ def display_interpretation_tab():
         """)
     
     st.markdown("---")
-    st.caption(f"â° Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    st.caption(f"⏰ Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 
 @st.cache_data(ttl=3600)
@@ -2189,11 +2189,11 @@ def test_symbol_availability():
                               progress=False, interval='1d')
             
             if data is not None and len(data) > 0:
-                results[sector] = {'status': 'âœ…', 'bars': len(data)}
+                results[sector] = {'status': '✅', 'bars': len(data)}
             else:
-                results[sector] = {'status': 'âŒ', 'bars': 0}
+                results[sector] = {'status': '❌', 'bars': 0}
         except:
-            results[sector] = {'status': 'âŒ', 'bars': 0}
+            results[sector] = {'status': '❌', 'bars': 0}
     
     return results
 
@@ -2210,11 +2210,11 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
     
     Secondary content: existing Momentum and Reversal evolution sub-tabs (T-7 to T).
     """
-    st.markdown("### ðŸ“… Historical Rankings (Last 30 Trading Days)")
+    st.markdown("### 📅 Historical Rankings (Last 30 Trading Days)")
     st.markdown("---")
     
     if sector_data_dict is None or benchmark_data is None:
-        st.error("âŒ No data available for historical analysis")
+        st.error("❌ No data available for historical analysis")
         return
     
     from indicators import calculate_rsi, calculate_adx, calculate_z_score, calculate_cmf, calculate_mansfield_rs
@@ -2273,7 +2273,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
         hist_conf_sector_code = 'universal'
 
     # --- Primary content: date-wise table (last 30 days for confluence) ---
-    st.markdown("#### ðŸ“‹ Primary: Date-wise summary (MA+RSI+VWAP) â€“ last 30 trading days")
+    st.markdown("#### 📋 Primary: Date-wise summary (MA+RSI+VWAP) – last 30 trading days")
     st.caption("Scoring: MA+RSI+VWAP (1 pt each RSI 1W/1D/1H up, 1 pt each Price > 8/20/50 SMA, + VWAP). Last 30 days; Next 1D/2D/3D/1W % may be blank for latest rows.")
     NIFTY50_SYMBOLS = [
         'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS',
@@ -2290,7 +2290,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
     
     # Need a reasonable history window for the 30-day table
     if len(benchmark_data) < 31:
-        st.warning("âš ï¸ Need at least 31 trading days of data for the 30-day table.")
+        st.warning("⚠️ Need at least 31 trading days of data for the 30-day table.")
     else:
         # Use last 30 trading days for confluence historical view
         lookback_days = min(30, len(benchmark_data))
@@ -2449,7 +2449,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
                         rsi_z = rsi_z.fillna(0.0)
                         cmf_z = cmf_z.fillna(0.0)
                         df_sec['Score'] = 0.5 * rsi_z + 0.5 * cmf_z
-                        # Higher Score = stronger momentum â†’ sort descending
+                        # Higher Score = stronger momentum → sort descending
                         df_sec = df_sec.sort_values('Score', ascending=False)
                     else:
                         # Historical / mixed mode: rank-based momentum (same weights as main Momentum tab)
@@ -2465,7 +2465,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
                             df_sec['RSI_Rank'] * momentum_weights.get('RSI', 30) / tw +
                             df_sec['DI_Spread_Rank'] * momentum_weights.get('DI_Spread', 10) / tw
                         )
-                        # Lower weighted average rank = better â†’ sort ascending
+                        # Lower weighted average rank = better → sort ascending
                         df_sec = df_sec.sort_values('Score', ascending=True)
 
                     top2 = df_sec.head(2)['sector'].tolist()
@@ -2478,7 +2478,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
                     row['Momentum #1 Sector'] = ''
                     row['Momentum #2 Sector'] = ''
                 
-                # c) d) Bullish #1, #2 and e) f) Bearish #1, #2 â€” same scoring as Stock Screener
+                # c) d) Bullish #1, #2 and e) f) Bearish #1, #2 — same scoring as Stock Screener
                 company_hourly, _ = fetch_all_sectors_parallel(company_symbols_dict, end_date=date_t, interval='1h')
                 screener_list = []
                 for sym, rec in company_data.items():
@@ -2529,7 +2529,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
                     conf_bear_list = []   # (sym, sector, name, bear_score, d, _idx)
                     confluence_details = {}  # sym -> details dict
                     for (sym, sector, name, _s, d, _idx) in screener_list:
-                        # (a) Sector filter â€” per-date Top 4 (bullish) / Bottom 6 (bearish) from Momentum Ranking
+                        # (a) Sector filter — per-date Top 4 (bullish) / Bottom 6 (bearish) from Momentum Ranking
                         bull_sector_ok = (
                             hist_conf_sector_filter == "Universal (All Sectors)"
                             or (top_4_this_date and sector in top_4_this_date)
@@ -2750,7 +2750,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
             breadth_cols = [c for c in ['Advance/Total %', 'Stocks % above 10 DMA'] if c in df_primary.columns]
 
             if len(conf_bull_present) >= 4:
-                st.markdown(f"#### ðŸŸ¢ Confluence Bullish #1/#2 ({hist_conf_tf_label}, Advance/Total, % 10 DMA, CMP)")
+                st.markdown(f"#### 🟢 Confluence Bullish #1/#2 ({hist_conf_tf_label}, Advance/Total, % 10 DMA, CMP)")
                 df_conf_bull = df_primary[conf_bull_present].sort_values('Date', ascending=False)
                 score_cols_b = [c for c in ['Conf Bull #1 Score', 'Conf Bull #2 Score'] if c in df_conf_bull.columns]
                 cmp_cols_b = [c for c in ['Conf Bull #1 CMP', 'Conf Bull #2 CMP'] if c in df_conf_bull.columns]
@@ -2764,7 +2764,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
                 )
 
             if len(conf_bear_present) >= 4:
-                st.markdown(f"#### ðŸ”´ Confluence Bearish #1/#2 ({hist_conf_tf_label}, Advance/Total, % 10 DMA, CMP)")
+                st.markdown(f"#### 🔴 Confluence Bearish #1/#2 ({hist_conf_tf_label}, Advance/Total, % 10 DMA, CMP)")
                 df_conf_bear = df_primary[conf_bear_present].sort_values('Date', ascending=False)
                 score_cols_be = [c for c in ['Conf Bear #1 Score', 'Conf Bear #2 Score'] if c in df_conf_bear.columns]
                 cmp_cols_be = [c for c in ['Conf Bear #1 CMP', 'Conf Bear #2 CMP'] if c in df_conf_bear.columns]
@@ -2779,10 +2779,10 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
 
             if len(conf_bull_present) >= 4 or len(conf_bear_present) >= 4:
                 st.caption(
-                    f"**Confluence scoring ({hist_conf_tf_label}):** Trend (HH/HL = Wâ‚, Sideways = Wâ‚Ã—0.33, LL/LH = 0), "
-                    "Direction (Bullish = Wâ‚‚, Mixed = Wâ‚‚Ã—0.33, Bearish = 0), "
-                    "RSI (rising+zone = Wâ‚ƒ, rising = Wâ‚ƒÃ—0.5), Setup (crossover+bullish = Wâ‚„), "
-                    "Divergence (bullish = Wâ‚…, bearish = âˆ’Wâ‚…Ã—0.5). "
+                    f"**Confluence scoring ({hist_conf_tf_label}):** Trend (HH/HL = W₁, Sideways = W₁×0.33, LL/LH = 0), "
+                    "Direction (Bullish = W₂, Mixed = W₂×0.33, Bearish = 0), "
+                    "RSI (rising+zone = W₃, rising = W₃×0.5), Setup (crossover+bullish = W₄), "
+                    "Divergence (bullish = W₅, bearish = −W₅×0.5). "
                     "Dir = confluence direction. 1D/2D/3D/1W % = next 1/2/3/5-day return. Sector = stock sector. "
                     f"Last 30 trading days. Switch timeframe or sector filter above to recompute."
                 )
@@ -2790,7 +2790,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
             st.info("No rows computed for the 30-day table.")
     
     st.markdown("---")
-    st.markdown("#### ðŸ“ˆ Secondary: Sector evolution (Momentum & Reversal)")
+    st.markdown("#### 📈 Secondary: Sector evolution (Momentum & Reversal)")
     
     # Get current top 2 momentum sectors (for sub-tabs)
     current_results = []
@@ -2833,7 +2833,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
         })
     
     if not current_results:
-        st.error("âŒ Unable to calculate rankings")
+        st.error("❌ Unable to calculate rankings")
         return
     
     # Rank and get top 2 (Trending: 50% Z(RSI) + 50% Z(CMF); Historical: rank-based)
@@ -2875,7 +2875,7 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
     top_2_sectors = df_current.head(2)['Sector'].tolist()
     
     # Create tabs for Momentum and Reversal
-    hist_tab1, hist_tab2 = st.tabs(["ðŸ“ˆ Momentum Rankings (T-7 to T)", "ðŸ”„ Reversal Rankings (T-7 to T)"])
+    hist_tab1, hist_tab2 = st.tabs(["📈 Momentum Rankings (T-7 to T)", "🔄 Reversal Rankings (T-7 to T)"])
     
     with hist_tab1:
         st.markdown("#### Momentum Strategy - Top 2 Sectors Evolution")
@@ -2916,9 +2916,9 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
                             df_hist = pd.DataFrame(hist_data)
                             st.dataframe(df_hist, use_container_width=True, hide_index=True)
                         else:
-                            st.warning("âš ï¸ Insufficient historical data")
+                            st.warning("⚠️ Insufficient historical data")
         else:
-            st.info("â„¹ï¸ Need at least 2 sectors to compare")
+            st.info("ℹ️ Need at least 2 sectors to compare")
     
     with hist_tab2:
         st.markdown("#### Reversal Strategy - Top 2 Reversal Candidates Evolution")
@@ -3011,18 +3011,18 @@ def display_historical_rankings_tab(sector_data_dict, benchmark_data, momentum_w
                                 df_hist = pd.DataFrame(hist_data)
                                 st.dataframe(df_hist, use_container_width=True, hide_index=True)
                             else:
-                                st.warning("âš ï¸ Insufficient historical data")
+                                st.warning("⚠️ Insufficient historical data")
         else:
-            st.info("â„¹ï¸ Unable to analyze reversal candidates")
+            st.info("ℹ️ Unable to analyze reversal candidates")
 
 
 
 def display_sector_companies_tab():
     """Display sector-wise company mappings with symbols."""
-    st.markdown("### ðŸ¢ Sector-wise Company Mappings")
+    st.markdown("### 🏢 Sector-wise Company Mappings")
     st.markdown("---")
     
-    st.info("ðŸ“‹ **Top companies by weight in each sector/ETF** - These are the companies tracked for company-level analysis.")
+    st.info("📋 **Top companies by weight in each sector/ETF** - These are the companies tracked for company-level analysis.")
     
     from company_symbols import SECTOR_COMPANIES, SECTOR_COMPANY_EXCEL_PATH_USED
     # Show what the app actually uses (SECTOR_COMPANIES); reload button updates it from Excel
@@ -3030,7 +3030,7 @@ def display_sector_companies_tab():
     excel_loaded = SECTOR_COMPANY_EXCEL_PATH_USED
     
     # Download/Upload section
-    st.markdown("#### ðŸ“¥ Export / ðŸ“¤ Import Company Mappings")
+    st.markdown("#### 📥 Export / 📤 Import Company Mappings")
     dl_col, reload_col = st.columns(2)
     
     with dl_col:
@@ -3049,7 +3049,7 @@ def display_sector_companies_tab():
         csv_data = download_df.to_csv(index=False)
         
         st.download_button(
-            label="ðŸ“¥ Download All Companies (CSV)",
+            label="📥 Download All Companies (CSV)",
             data=csv_data,
             file_name=f"sector_companies_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
@@ -3060,8 +3060,8 @@ def display_sector_companies_tab():
         try:
             from company_symbols import SECTOR_COMPANY_EXCEL_PATH_USED, reload_sector_companies_from_excel
             path_display = SECTOR_COMPANY_EXCEL_PATH_USED or "Sector-Company.xlsx"
-            st.caption(f"âœ… Loaded from: **{path_display}**")
-            if st.button("ðŸ”„ Reload from Excel", help="Re-read Sector-Company.xlsx and refresh company names (no restart needed)"):
+            st.caption(f"✅ Loaded from: **{path_display}**")
+            if st.button("🔄 Reload from Excel", help="Re-read Sector-Company.xlsx and refresh company names (no restart needed)"):
                 ok, msg = reload_sector_companies_from_excel()
                 if ok:
                     st.cache_data.clear()
@@ -3070,7 +3070,7 @@ def display_sector_companies_tab():
                 else:
                     st.error(msg)
         except Exception as e:
-            st.caption("ðŸ“ Place Sector-Company.xlsx in project folder to load custom weights")
+            st.caption("📁 Place Sector-Company.xlsx in project folder to load custom weights")
     
     st.markdown("---")
     
@@ -3083,7 +3083,7 @@ def display_sector_companies_tab():
     # Left column
     with col1:
         for sector in sectors[:half]:
-            with st.expander(f"ðŸ“Š **{sector}**", expanded=False):
+            with st.expander(f"📊 **{sector}**", expanded=False):
                 companies = display_data[sector]
                 
                 # Create dataframe for this sector
@@ -3102,7 +3102,7 @@ def display_sector_companies_tab():
     # Right column
     with col2:
         for sector in sectors[half:]:
-            with st.expander(f"ðŸ“Š **{sector}**", expanded=False):
+            with st.expander(f"📊 **{sector}**", expanded=False):
                 companies = display_data[sector]
                 
                 # Create dataframe for this sector
@@ -3139,10 +3139,10 @@ def display_sector_companies_tab():
 
 def display_data_sources_tab():
     """Display data sources connectivity status."""
-    st.markdown("### ðŸ“Š Data Sources & Connectivity")
+    st.markdown("### 📊 Data Sources & Connectivity")
     st.markdown("---")
     
-    st.info("ðŸ”„ **Real-time connectivity test completed on page load.** Status shows availability of each Index and ETF proxy.")
+    st.info("🔄 **Real-time connectivity test completed on page load.** Status shows availability of each Index and ETF proxy.")
     
     # Get connectivity status
     availability_status = test_symbol_availability()
@@ -3151,10 +3151,10 @@ def display_data_sources_tab():
     display_data = []
     
     # Add Nifty 50 benchmark first
-    nifty_50_status = availability_status.get('Nifty 50', {}).get('status', 'âŒ')
-    nifty_50_alt_status = availability_status.get('Nifty 50_ALT', {}).get('status', 'âŒ')
+    nifty_50_status = availability_status.get('Nifty 50', {}).get('status', '❌')
+    nifty_50_alt_status = availability_status.get('Nifty 50_ALT', {}).get('status', '❌')
     display_data.append({
-        'Sector': 'ðŸ”µ Nifty 50 (Benchmark)',
+        'Sector': '🔵 Nifty 50 (Benchmark)',
         'Index Symbol': '^NSEI',
         'Index Status': nifty_50_status,
         'ETF Symbol': 'NIFTYBEES.NS',
@@ -3172,9 +3172,9 @@ def display_data_sources_tab():
         etf_sym = SECTOR_ETFS.get(sector, 'N/A')
         alt_etf_sym = SECTOR_ETFS_ALTERNATE.get(sector, '')
         
-        index_status = availability_status.get(sector, {}).get('status', 'âŒ')
+        index_status = availability_status.get(sector, {}).get('status', '❌')
         etf_key = f"{sector}_ETF"
-        etf_status = availability_status.get(etf_key, {}).get('status', 'âŒ')
+        etf_status = availability_status.get(etf_key, {}).get('status', '❌')
         
         alt_key = f"{sector}_ALT_ETF"
         alt_status = availability_status.get(alt_key, {}).get('status', '') if alt_etf_sym else ''
@@ -3194,9 +3194,9 @@ def display_data_sources_tab():
     
     # Style the dataframe
     def color_status(val):
-        if val == 'âœ…':
+        if val == '✅':
             return 'background-color: #27AE60; color: #fff; font-weight: bold'
-        elif val == 'âŒ':
+        elif val == '❌':
             return 'background-color: #E74C3C; color: #fff; font-weight: bold'
         elif val == 'N/A':
             return 'background-color: #95A5A6; color: #fff'
@@ -3209,23 +3209,23 @@ def display_data_sources_tab():
     col1, col2, col3 = st.columns(3)
     
     total_symbols = len([s for s in availability_status.values() if s.get('status') != 'N/A'])
-    working_symbols = len([s for s in availability_status.values() if s.get('status') == 'âœ…'])
+    working_symbols = len([s for s in availability_status.values() if s.get('status') == '✅'])
     failed_symbols = total_symbols - working_symbols
     
     with col1:
         st.metric("Total Symbols", total_symbols, f"{working_symbols} working")
     
     with col2:
-        st.metric("âœ… Successful", working_symbols, f"{(working_symbols/total_symbols*100):.1f}%")
+        st.metric("✅ Successful", working_symbols, f"{(working_symbols/total_symbols*100):.1f}%")
     
     with col3:
-        st.metric("âŒ Failed", failed_symbols, f"{(failed_symbols/total_symbols*100):.1f}%")
+        st.metric("❌ Failed", failed_symbols, f"{(failed_symbols/total_symbols*100):.1f}%")
     
     st.markdown("---")
-    st.caption(f"â° Test completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    st.caption(f"⏰ Test completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Sector / Company / Symbol / Weight (%) table so user knows the data source
-    st.markdown("### ðŸ“‹ Sectorâ€“Company data (used by all tabs)")
+    st.markdown("### 📋 Sector–Company data (used by all tabs)")
     try:
         from company_symbols import SECTOR_COMPANIES
         table_rows = []
@@ -3252,9 +3252,9 @@ def display_data_sources_tab():
             )
             st.caption("This list is loaded from Sector-Company.xlsx (sheet 'Main'). **Restart the app** after editing the Excel to see updated company names. No company appears in more than one sector.")
         else:
-            st.info("No sectorâ€“company data loaded.")
+            st.info("No sector–company data loaded.")
     except Exception as e:
-        st.warning(f"Could not load sectorâ€“company table: {e}")
+        st.warning(f"Could not load sector–company table: {e}")
 
 
 def calculate_fibonacci_levels(high, low):
@@ -3351,8 +3351,8 @@ def display_market_breadth_block(benchmark_data, analysis_date=None):
     Always visible above the tabs.
     """
     if benchmark_data is None or len(benchmark_data) == 0:
-        st.markdown("### ðŸ“ˆ Market Breadth (Nifty 50)")
-        st.info("âš ï¸ Benchmark data not available for market breadth.")
+        st.markdown("### 📈 Market Breadth (Nifty 50)")
+        st.info("⚠️ Benchmark data not available for market breadth.")
         st.markdown("---")
         return
     
@@ -3397,10 +3397,10 @@ def display_market_breadth_block(benchmark_data, analysis_date=None):
     advance_total_pct = round((advances / total_ad * 100), 1) if total_ad else None
     
     # Display Market Breadth metrics
-    st.markdown("### ðŸ“ˆ Market Breadth (Nifty 50)")
+    st.markdown("### 📈 Market Breadth (Nifty 50)")
     bc1, bc2, bc3, bc4 = st.columns(4)
     with bc1:
-        nifty_display = f"â‚¹{int(round(nifty_price, 0)):,}" if nifty_price is not None else "N/A"
+        nifty_display = f"₹{int(round(nifty_price, 0)):,}" if nifty_price is not None else "N/A"
         st.metric("Nifty 50", nifty_display)
     with bc2:
         st.metric("Advances", advances if total_ad else "-")
@@ -3425,8 +3425,8 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
     Color: Red <25%, Yellow 25-50%, Green >50%. Bottom row = 20-day average for % 20 DMA, % 50 DMA, Nifty Chg %.
     """
     if benchmark_data is None or len(benchmark_data) < 22:
-        st.markdown("### ðŸ“Š Market breadth")
-        st.warning("âš ï¸ Need at least 22 trading days of benchmark data for the 20-day table.")
+        st.markdown("### 📊 Market breadth")
+        st.warning("⚠️ Need at least 22 trading days of benchmark data for the 20-day table.")
         return
 
     # Use the same universe as Sector-Company.xlsx; fallback to Nifty 50 if empty (e.g. Cloud deploy without Excel)
@@ -3449,11 +3449,11 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
     n_stocks = len(universe_symbols)
     _min_bars_breadth = 25
 
-    st.markdown("### ðŸ“Š Market breadth")
+    st.markdown("### 📊 Market breadth")
     st.caption(
         f"Last 20 trading days on {n_stocks}-stock universe. "
         "Advance/Total %, % Above 8/20/50 DMA, Nifty Chg %: "
-        "ðŸ”´ <25% weak | ðŸŸ¡ 25â€“50% neutral | ðŸŸ¢ >50% positive (breadth columns)."
+        "🔴 <25% weak | 🟡 25–50% neutral | 🟢 >50% positive (breadth columns)."
     )
     st.markdown("---")
 
@@ -3473,9 +3473,9 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
                 if d is not None and len(d) >= _min_bars_breadth:
                     nifty_closes[sym] = d['Close']
         if not nifty_closes:
-            st.warning("âš ï¸ Could not load price data for breadth universe. Table will show Nifty only. Check data source or try again later.")
+            st.warning("⚠️ Could not load price data for breadth universe. Table will show Nifty only. Check data source or try again later.")
 
-        # Use last 20 business days (Monâ€“Fri) so no weekday is missing (e.g. Monday)
+        # Use last 20 business days (Mon–Fri) so no weekday is missing (e.g. Monday)
         last_date = pd.Timestamp(benchmark_data.index[-1]).date()
         dates_20 = pd.bdate_range(end=last_date, periods=20, freq='B').tolist()
         dates_20 = list(reversed(dates_20))  # oldest first, current day last
@@ -3502,30 +3502,39 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
 
             for sym, series in nifty_closes.items():
                 try:
-                    idx = series.index.get_indexer([date_t], method='ffill')[0]
-                    if idx < 0 or idx >= len(series) or idx == 0:
+                    # Normalize timezone to avoid mismatch with date_t (which is tz-naive)
+                    s = series.copy()
+                    if hasattr(s.index, 'tz') and s.index.tz is not None:
+                        s.index = s.index.tz_localize(None)
+                    idx = s.index.get_indexer([pd.Timestamp(date_t)], method='ffill')[0]
+                    if idx < 0 or idx >= len(s):
                         continue
-                    close_t = series.iloc[idx]
-                    close_prev = series.iloc[idx - 1]
-                    if close_t > close_prev:
-                        advances += 1
-                    elif close_t < close_prev:
-                        declines += 1
-                    total_ad += 1
+                    close_t = s.iloc[idx]
+                    if idx == 0:
+                        # No previous bar for advance/decline, but still count DMA
+                        close_prev = None
+                    else:
+                        close_prev = s.iloc[idx - 1]
+                    if close_prev is not None:
+                        if close_t > close_prev:
+                            advances += 1
+                        elif close_t < close_prev:
+                            declines += 1
+                        total_ad += 1
                     if idx >= 7:
-                        sma8 = series.rolling(8).mean().iloc[idx]
+                        sma8 = s.rolling(8).mean().iloc[idx]
                         if not pd.isna(sma8):
                             total_8 += 1
                             if close_t > sma8:
                                 above_8 += 1
                     if idx >= 19:
-                        sma20 = series.rolling(20).mean().iloc[idx]
+                        sma20 = s.rolling(20).mean().iloc[idx]
                         if not pd.isna(sma20):
                             total_20 += 1
                             if close_t > sma20:
                                 above_20 += 1
                     if idx >= 49:
-                        sma50 = series.rolling(50).mean().iloc[idx]
+                        sma50 = s.rolling(50).mean().iloc[idx]
                         if not pd.isna(sma50):
                             total_50 += 1
                             if close_t > sma50:
@@ -3543,12 +3552,15 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
 
             try:
                 if nifty_index_data is not None and len(nifty_index_data) > 0:
-                    nifty_idx = nifty_index_data.index.get_indexer([date_t], method='ffill')[0]
+                    nifty_idx_data = nifty_index_data.copy()
+                    if hasattr(nifty_idx_data.index, 'tz') and nifty_idx_data.index.tz is not None:
+                        nifty_idx_data.index = nifty_idx_data.index.tz_localize(None)
+                    nifty_idx = nifty_idx_data.index.get_indexer([pd.Timestamp(date_t)], method='ffill')[0]
                     if 0 <= nifty_idx < len(nifty_index_data):
-                        nifty_close = nifty_index_data['Close'].iloc[nifty_idx]
+                        nifty_close = nifty_idx_data['Close'].iloc[nifty_idx]
                         row['Nifty'] = int(round(nifty_close, 0))
                         if nifty_idx > 0:
-                            nifty_prev = nifty_index_data['Close'].iloc[nifty_idx - 1]
+                            nifty_prev = nifty_idx_data['Close'].iloc[nifty_idx - 1]
                             chg = (nifty_close / nifty_prev - 1) * 100
                             row['Nifty Chg %'] = round(chg, 1)
                         else:
@@ -3671,10 +3683,10 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
 
     # ---- Nifty Put-Call Ratio (PCR) ----
     st.markdown("---")
-    st.markdown("## ðŸ“‰ Nifty Put-Call Ratio (PCR)")
+    st.markdown("## 📉 Nifty Put-Call Ratio (PCR)")
     st.caption(
-        "PCR = Total Put OI Ã· Total Call OI. "
-        "ðŸŸ¢ PCR > 1 = More puts (bullish for market) | ðŸŸ¡ 0.7â€“1.0 = Neutral | ðŸ”´ PCR < 0.7 = More calls (bearish for market). "
+        "PCR = Total Put OI ÷ Total Call OI. "
+        "🟢 PCR > 1 = More puts (bullish for market) | 🟡 0.7–1.0 = Neutral | 🔴 PCR < 0.7 = More calls (bearish for market). "
         "Extreme PCR (>1.3 or <0.5) may signal reversal."
     )
 
@@ -3695,7 +3707,7 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
             return None, None, None, None
         try:
             file_mod = _dt.fromtimestamp(os.path.getmtime(csv_path)).strftime('%Y-%m-%d %H:%M')
-            # NSE CSV has a messy header â€” try reading with different strategies
+            # NSE CSV has a messy header — try reading with different strategies
             raw = pd.read_csv(csv_path, header=None, dtype=str)
 
             # Strategy 1: Find the row that contains 'CALLS' and 'PUTS' or 'Strike Price'
@@ -3712,7 +3724,7 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
             df = pd.read_csv(csv_path, header=header_row, dtype=str)
             df.columns = [str(c).strip() for c in df.columns]
 
-            # Find OI columns â€” NSE typically has two 'OI' columns (one for CE, one for PE)
+            # Find OI columns — NSE typically has two 'OI' columns (one for CE, one for PE)
             # The CE OI is to the LEFT of Strike Price, PE OI is to the RIGHT
             oi_cols = [c for c in df.columns if 'OI' == c.strip().upper() or 'OI' in c.upper()]
             strike_col = None
@@ -3775,10 +3787,10 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
     pcr_file_date = None
 
     # Option 1: Upload CSV directly in the app
-    with st.expander("ðŸ“‚ Load Nifty Option Chain CSV for PCR", expanded=not bool(_pcr_candidates)):
+    with st.expander("📂 Load Nifty Option Chain CSV for PCR", expanded=not bool(_pcr_candidates)):
         st.markdown(
-            "**How to get the CSV:** Go to [NSE Option Chain](https://www.nseindia.com/option-chain) â†’ "
-            "Select **NIFTY** â†’ Click **Download (.csv)** â†’ Save to your E: drive project folder, "
+            "**How to get the CSV:** Go to [NSE Option Chain](https://www.nseindia.com/option-chain) → "
+            "Select **NIFTY** → Click **Download (.csv)** → Save to your E: drive project folder, "
             "or upload it here."
         )
 
@@ -3831,23 +3843,23 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
         if pcr_val >= 1.3:
             pcr_color = "#E74C3C"
             pcr_label = "Extreme Bearish (potential bullish reversal)"
-            pcr_emoji = "ðŸ”´"
+            pcr_emoji = "🔴"
         elif pcr_val >= 1.0:
             pcr_color = "#27AE60"
-            pcr_label = "Bearish bias â€” Bullish for market"
-            pcr_emoji = "ðŸŸ¢"
+            pcr_label = "Bearish bias — Bullish for market"
+            pcr_emoji = "🟢"
         elif pcr_val >= 0.7:
             pcr_color = "#F1C40F"
             pcr_label = "Neutral zone"
-            pcr_emoji = "ðŸŸ¡"
+            pcr_emoji = "🟡"
         elif pcr_val >= 0.5:
             pcr_color = "#E67E22"
-            pcr_label = "Bullish bias â€” Bearish for market"
-            pcr_emoji = "ðŸŸ "
+            pcr_label = "Bullish bias — Bearish for market"
+            pcr_emoji = "🟠"
         else:
             pcr_color = "#E74C3C"
             pcr_label = "Extreme Bullish (potential bearish reversal)"
-            pcr_emoji = "ðŸ”´"
+            pcr_emoji = "🔴"
 
         col_pcr1, col_pcr2, col_pcr3 = st.columns(3)
         with col_pcr1:
@@ -3872,16 +3884,16 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
                 st.caption(f"File date: {pcr_file_date}")
             st.markdown("""
 **PCR Guide:**
-- **> 1.3** â€” Extreme put buying â†’ potential bullish reversal
-- **1.0 â€“ 1.3** â€” More puts than calls â†’ bullish for market
-- **0.7 â€“ 1.0** â€” Neutral zone
-- **0.5 â€“ 0.7** â€” More calls than puts â†’ bearish for market
-- **< 0.5** â€” Extreme call buying â†’ potential bearish reversal
+- **> 1.3** — Extreme put buying → potential bullish reversal
+- **1.0 – 1.3** — More puts than calls → bullish for market
+- **0.7 – 1.0** — Neutral zone
+- **0.5 – 0.7** — More calls than puts → bearish for market
+- **< 0.5** — Extreme call buying → potential bearish reversal
 """)
 
     # Nifty - Fibonacci Analysis (below breadth table)
     st.markdown("---")
-    st.markdown("## ðŸ”¢ Nifty - Fibonacci Analysis")
+    st.markdown("## 🔢 Nifty - Fibonacci Analysis")
     st.markdown("---")
     with st.spinner("Calculating Nifty Fibonacci levels..."):
         try:
@@ -3894,25 +3906,25 @@ def display_market_breadth_tab(benchmark_data, analysis_date=None, sector_data_d
                 in_zone, fib_level, distance = check_fibonacci_golden_zone(current_nifty_price, fib_levels)
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("### ðŸ“Š Swing Points (Last 20 Days)")
-                    st.write(f"**Swing High:** â‚¹{swing_high:,.2f} ({swing_high_date.strftime('%Y-%m-%d')})")
-                    st.write(f"**Swing Low:** â‚¹{swing_low:,.2f} ({swing_low_date.strftime('%Y-%m-%d')})")
-                    st.write(f"**Current Price:** â‚¹{current_nifty_price:,.2f}")
+                    st.markdown("### 📊 Swing Points (Last 20 Days)")
+                    st.write(f"**Swing High:** ₹{swing_high:,.2f} ({swing_high_date.strftime('%Y-%m-%d')})")
+                    st.write(f"**Swing Low:** ₹{swing_low:,.2f} ({swing_low_date.strftime('%Y-%m-%d')})")
+                    st.write(f"**Current Price:** ₹{current_nifty_price:,.2f}")
                 with col2:
-                    st.markdown("### ðŸ”¢ Fibonacci Levels")
-                    st.write(f"**0.236:** â‚¹{fib_levels[0.236]:,.2f}")
-                    st.write(f"**0.382:** â‚¹{fib_levels[0.382]:,.2f}")
-                    st.write(f"**0.500:** â‚¹{fib_levels[0.5]:,.2f} â­ Golden Level")
-                    st.write(f"**0.618:** â‚¹{fib_levels[0.618]:,.2f}")
-                    st.write(f"**0.786:** â‚¹{fib_levels[0.786]:,.2f}")
+                    st.markdown("### 🔢 Fibonacci Levels")
+                    st.write(f"**0.236:** ₹{fib_levels[0.236]:,.2f}")
+                    st.write(f"**0.382:** ₹{fib_levels[0.382]:,.2f}")
+                    st.write(f"**0.500:** ₹{fib_levels[0.5]:,.2f} ⭐ Golden Level")
+                    st.write(f"**0.618:** ₹{fib_levels[0.618]:,.2f}")
+                    st.write(f"**0.786:** ₹{fib_levels[0.786]:,.2f}")
                 if in_zone:
-                    st.success(f"âœ… Nifty is near Fib 0.5 (Golden Level) - Distance: {distance:.2f}%")
+                    st.success(f"✅ Nifty is near Fib 0.5 (Golden Level) - Distance: {distance:.2f}%")
                 else:
-                    st.info(f"â„¹ï¸ Nifty is not near Fib 0.5 level")
+                    st.info(f"ℹ️ Nifty is not near Fib 0.5 level")
             else:
-                st.warning("âš ï¸ Insufficient Nifty data for Fibonacci analysis")
+                st.warning("⚠️ Insufficient Nifty data for Fibonacci analysis")
         except Exception as e:
-            st.error(f"âŒ Error in Nifty Fibonacci analysis: {str(e)}")
+            st.error(f"❌ Error in Nifty Fibonacci analysis: {str(e)}")
 
 
 def display_stock_analysis_tab(analysis_date=None, benchmark_data=None, momentum_weights=None):
@@ -3928,11 +3940,11 @@ def display_stock_analysis_tab(analysis_date=None, benchmark_data=None, momentum
     from company_symbols import SECTOR_COMPANIES
     from indicators import calculate_rsi, calculate_adx, calculate_z_score
     
-    st.markdown("### ðŸ“Š Stock Screener: Top 10 Bullish & Top 10 Bearish")
+    st.markdown("### 📊 Stock Screener: Top 10 Bullish & Top 10 Bearish")
     st.markdown("---")
     
     if benchmark_data is None or len(benchmark_data) < 14:
-        st.warning("âš ï¸ Benchmark data required for stock screener. Run analysis first.")
+        st.warning("⚠️ Benchmark data required for stock screener. Run analysis first.")
         return
     
     if momentum_weights is None:
@@ -3947,7 +3959,7 @@ def display_stock_analysis_tab(analysis_date=None, benchmark_data=None, momentum
             all_companies.append((sector, sym, info.get('name', sym)))
     
     if not all_companies:
-        st.warning("âš ï¸ No companies found in SECTOR_COMPANIES.")
+        st.warning("⚠️ No companies found in SECTOR_COMPANIES.")
         return
     
     end_dt = dt.combine(analysis_date, dt.min.time()) if analysis_date else None
@@ -3989,7 +4001,7 @@ def display_stock_analysis_tab(analysis_date=None, benchmark_data=None, momentum
             continue
     
     if not company_scores:
-        st.warning("âš ï¸ No company data available for screener")
+        st.warning("⚠️ No company data available for screener")
         return
     
     df_c = pd.DataFrame(company_scores)
@@ -4028,19 +4040,19 @@ def display_stock_analysis_tab(analysis_date=None, benchmark_data=None, momentum
             res[idx] = 'background-color: #E74C3C; color: #fff; font-weight: bold'
         return res
     
-    st.markdown("#### ðŸŸ¢ Top 10 Bullish (by Momentum Score)")
+    st.markdown("#### 🟢 Top 10 Bullish (by Momentum Score)")
     bull_cols = [c for c in display_cols if c in top15_bullish.columns]
     df_bull = top15_bullish[bull_cols].copy()
     df_bull_styled = df_bull.style.apply(lambda r: ['background-color: #d4edda; color: #000' if i < len(r) else '' for i in range(len(r))], axis=1)
     st.dataframe(df_bull, use_container_width=True, hide_index=True)
     
-    st.markdown("#### ðŸ”´ Top 10 Bearish (by Momentum Score)")
+    st.markdown("#### 🔴 Top 10 Bearish (by Momentum Score)")
     bear_cols = [c for c in display_cols if c in top15_bearish.columns]
     df_bear = top15_bearish[bear_cols].copy()
     st.dataframe(df_bear, use_container_width=True, hide_index=True)
     
-    st.caption("ðŸŸ¢ Bullish = lowest rank sum (best momentum). ðŸ”´ Bearish = highest rank sum (weakest momentum).")
-    st.success(f"âœ… Screener complete! Analyzed {len(company_scores)} stocks from SECTOR_COMPANIES.")
+    st.caption("🟢 Bullish = lowest rank sum (best momentum). 🔴 Bearish = highest rank sum (weakest momentum).")
+    st.success(f"✅ Screener complete! Analyzed {len(company_scores)} stocks from SECTOR_COMPANIES.")
 
 
 def _compute_screener_score(daily, hourly, w_vwap_above=1.0, w_vwap_approach=0.5):
@@ -4192,12 +4204,12 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
     from company_symbols import SECTOR_COMPANIES, SECTOR_COMPANY_EXCEL_PATH_USED
 
     st.markdown("---")
-    st.header("ðŸ“Š Stock Screener")
+    st.header("📊 Stock Screener")
 
     # ============================================================
-    # SECTOR FILTER TOGGLE â€“ focus on top momentum sectors
+    # SECTOR FILTER TOGGLE – focus on top momentum sectors
     # ============================================================
-    st.markdown("### ðŸŽ¯ Sector Selection Strategy")
+    st.markdown("### 🎯 Sector Selection Strategy")
 
     col_toggle, col_info = st.columns([1, 2])
 
@@ -4243,11 +4255,11 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
                 bot_sectors = bot_from_df
                 st.info("**Confluence pertains to top 4 sectors (bullish) and bottom 6 sectors (bearish) per Momentum Ranking** for this date.")
                 if top_sectors:
-                    st.success(f"**âœ… Bullish (top 4):** {', '.join(top_sectors)}")
+                    st.success(f"**✅ Bullish (top 4):** {', '.join(top_sectors)}")
                 if bot_sectors:
-                    st.warning(f"**âš ï¸ Bearish (bottom 6):** {', '.join(bot_sectors)}")
+                    st.warning(f"**⚠️ Bearish (bottom 6):** {', '.join(bot_sectors)}")
             else:
-                st.info("**ðŸ“Š Universal:** Scanning all stocks from all sectors.")
+                st.info("**📊 Universal:** Scanning all stocks from all sectors.")
         elif sector_data_dict and momentum_weights:
             try:
                 from confluence_fixed import get_bottom_n_sectors_by_momentum
@@ -4256,37 +4268,37 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
                     bot_sectors = get_bottom_n_sectors_by_momentum(sector_data_dict, momentum_weights, n=6)
                     st.info("**Confluence pertains to top 4 (bullish) and bottom 6 (bearish) sectors** per Momentum Ranking.")
                     if top_sectors:
-                        st.success(f"**âœ… Bullish:** {', '.join(top_sectors)}")
+                        st.success(f"**✅ Bullish:** {', '.join(top_sectors)}")
                     if bot_sectors:
-                        st.warning(f"**âš ï¸ Bearish:** {', '.join(bot_sectors)}")
+                        st.warning(f"**⚠️ Bearish:** {', '.join(bot_sectors)}")
                 else:
-                    st.info("**ðŸ“Š Universal:** Scanning all stocks from all sectors.")
+                    st.info("**📊 Universal:** Scanning all stocks from all sectors.")
             except Exception:
                 top_retry, bot_retry = _top_bottom_from_df(df_momentum)
                 if top_retry is not None and sector_filter == "Top 4 + Bottom 6 (per Momentum Ranking)":
                     top_sectors, bot_sectors = top_retry, bot_retry
                     st.info("**Confluence pertains to top 4 + bottom 6 sectors** (fallback).")
                     if top_sectors:
-                        st.success(f"**âœ… Bullish:** {', '.join(top_sectors)}")
+                        st.success(f"**✅ Bullish:** {', '.join(top_sectors)}")
                     if bot_sectors:
-                        st.warning(f"**âš ï¸ Bearish:** {', '.join(bot_sectors)}")
+                        st.warning(f"**⚠️ Bearish:** {', '.join(bot_sectors)}")
                 else:
-                    st.warning("âš ï¸ Could not determine sectors â€” using all sectors.")
+                    st.warning("⚠️ Could not determine sectors — using all sectors.")
         else:
-            st.info("**ðŸ“Š Universal:** Sector data not available â€” using all sectors.")
+            st.info("**📊 Universal:** Sector data not available — using all sectors.")
 
     # ============================================================
-    # ENTRY STRATEGY GUIDE â€“ HL (Higher Low) explanation
+    # ENTRY STRATEGY GUIDE – HL (Higher Low) explanation
     # ============================================================
-    with st.expander("ðŸ“˜ Bullish Entry Strategy: Why enter at HL (Higher Low)?"):
+    with st.expander("📘 Bullish Entry Strategy: Why enter at HL (Higher Low)?"):
         st.markdown(
             """
-        ### ðŸŽ¯ Higher Low (HL) = Ideal Bullish Entry Point
+        ### 🎯 Higher Low (HL) = Ideal Bullish Entry Point
 
-        1. **Support confirmation** â€“ price bounces from HL support, showing demand.
-        2. **Trend intact** â€“ HL in an uptrend means continuation, not reversal.
-        3. **Tight stop loss** â€“ stop can sit just below HL (1â€“2%).
-        4. **Great Risk/Reward** â€“ small risk to HL vs. large potential to next HH.
+        1. **Support confirmation** – price bounces from HL support, showing demand.
+        2. **Trend intact** – HL in an uptrend means continuation, not reversal.
+        3. **Tight stop loss** – stop can sit just below HL (1–2%).
+        4. **Great Risk/Reward** – small risk to HL vs. large potential to next HH.
 
         **Multi-timeframe technique**
         - Daily: identify the HL zone and confirm HH/HL structure.
@@ -4313,12 +4325,12 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
 
     if sectors_to_analyze:
         label = "Top 4 + Bottom 6" if sector_filter == "Top 4 + Bottom 6 (per Momentum Ranking)" else "Universal"
-        st.markdown(f"### ðŸ“Š Stock Screener ({len(universe)} Stocks from {len(sectors_to_analyze)} {label} Sectors)")
+        st.markdown(f"### 📊 Stock Screener ({len(universe)} Stocks from {len(sectors_to_analyze)} {label} Sectors)")
     else:
-        st.markdown(f"### ðŸ“Š Stock Screener ({len(universe)} Stocks from All Sectors)")
+        st.markdown(f"### 📊 Stock Screener ({len(universe)} Stocks from All Sectors)")
 
     path_display = SECTOR_COMPANY_EXCEL_PATH_USED or "Sector-Company.xlsx"
-    st.caption(f"Company names from: **{path_display}** â€” use **Sector Companies** tab â†’ **Reload from Excel** after editing.")
+    st.caption(f"Company names from: **{path_display}** — use **Sector Companies** tab → **Reload from Excel** after editing.")
 
     # Show TIINDIA.NS name so user can confirm Excel is applied
     _ti_name = None
@@ -4327,12 +4339,12 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
             _ti_name = _syms["TIINDIA.NS"].get("name")
             break
     if _ti_name is not None:
-        st.caption(f"âœ“ Check: TIINDIA.NS is shown as **{_ti_name}** (from Excel).")
+        st.caption(f"✓ Check: TIINDIA.NS is shown as **{_ti_name}** (from Excel).")
 
     st.markdown("---")
 
     if not universe:
-        st.warning("âš ï¸ No companies found in selected sectors.")
+        st.warning("⚠️ No companies found in selected sectors.")
         return
 
     # Use last 10 trading days for dropdown, descending (today/latest first)
@@ -4355,11 +4367,11 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
     end_dt = dt.combine(selected_date, dt.min.time())
 
     if not universe:
-        st.warning("âš ï¸ No companies found in Sector-Company universe.")
+        st.warning("⚠️ No companies found in Sector-Company universe.")
         return
 
     # Scoring: MA+RSI+VWAP (1 pt each for RSI 1W/1D/1H up, 1 pt each for Price > 8/20/50 SMA; RSI divergence removed)
-    with st.expander("âš™ï¸ Scoring weights (optional) â€“ MA+RSI+VWAP", expanded=False):
+    with st.expander("⚙️ Scoring weights (optional) – MA+RSI+VWAP", expanded=False):
         w_vwap_above = st.slider("Weight: Price above VWAP (1H)", 0.0, 5.0, 1.0, 0.5)
         w_vwap_approach = st.slider("Weight: Price approaching VWAP (1H)", 0.0, 5.0, 0.5, 0.5)
 
@@ -4504,7 +4516,7 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
     status.empty()
 
     if not results:
-        st.warning("âš ï¸ No stocks could be analyzed for the screener.")
+        st.warning("⚠️ No stocks could be analyzed for the screener.")
         return
 
     df = pd.DataFrame(results)
@@ -4524,17 +4536,17 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
         if pd.isna(score):
             return ""
         if score < 1.5:
-            return "ðŸ”´ Weak"
+            return "🔴 Weak"
         if score < 3.0:
-            return "ðŸŸ¡ Moderate"
-        return "ðŸŸ¢ Strong"
+            return "🟡 Moderate"
+        return "🟢 Strong"
 
-    st.markdown("#### ðŸŸ¢ Top 10 Bullish")
+    st.markdown("#### 🟢 Top 10 Bullish")
     bull = top_bullish.copy()
     bull["Sentiment"] = bull["Final score"].apply(sentiment_color)
     st.dataframe(bull, use_container_width=True, hide_index=True)
 
-    st.markdown("#### ðŸ”´ Top 10 Bearish")
+    st.markdown("#### 🔴 Top 10 Bearish")
     bear = top_bearish.copy()
     bear["Sentiment"] = bear["Final score"].apply(sentiment_color)
     st.dataframe(bear, use_container_width=True, hide_index=True)
@@ -4679,7 +4691,7 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Nifty 50 Price", f"â‚¹{nifty_price:,.2f}")
+            st.metric("Nifty 50 Price", f"₹{nifty_price:,.2f}")
         with col2:
             st.metric("India VIX", f"{vix_value:.2f}" if vix_value else "N/A")
         with col3:
@@ -4690,7 +4702,7 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
         st.markdown("---")
         
         # A/D Section with totals and trend
-        st.markdown("### ðŸ“Š Advance/Decline Analysis")
+        st.markdown("### 📊 Advance/Decline Analysis")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -4703,7 +4715,7 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
             st.metric("Total", advances + declines)
         
         # Breadth Section with trends
-        st.markdown("### ðŸ“ˆ Market Breadth Analysis")
+        st.markdown("### 📈 Market Breadth Analysis")
         col1, col2 = st.columns(2)
         
         with col1:
@@ -4714,7 +4726,7 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
                      delta=f"{breadth_50_trend:+.1f}%" if breadth_50_trend != 0 else None)
         
         # 7-Day Trend Chart
-        st.markdown("### ðŸ“‰ 7-Day Trend Analysis")
+        st.markdown("### 📉 7-Day Trend Analysis")
         
         if len(historical_ad_ratios) >= 2:
             trend_data = pd.DataFrame({
@@ -4769,7 +4781,7 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
             df_trend_styled = trend_data.style.apply(style_trend_row, axis=1)
             st.dataframe(df_trend_styled, use_container_width=True, hide_index=True)
             
-            st.caption("ðŸŸ¢ Green: Bullish | ðŸ”´ Red: Bearish")
+            st.caption("🟢 Green: Bullish | 🔴 Red: Bearish")
         
         # Store in historical logs
         historical_logs.append({
@@ -4786,7 +4798,7 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
     # ============================================================
     # PART 3: INDIVIDUAL STOCK RANKING - CONFLUENCE ANALYSIS (FIXED)
     # ============================================================
-    st.markdown("## ðŸ† PART 3: Individual Stock Ranking - Confluence Analysis")
+    st.markdown("## 🏆 PART 3: Individual Stock Ranking - Confluence Analysis")
     st.caption("**Logic summary (v3.1):** Confluence uses **top 4 sectors (bullish) and bottom 6 sectors (bearish)** per Momentum Ranking when that filter is selected. Only stocks with score > gate-fail threshold are shown in Top 8 tables; rejected stocks appear in the Excel Rejected sheet.")
     st.markdown("---")
 
@@ -4800,7 +4812,7 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
     )
 
     # --- Sector universe: Top 4 (bullish) + Bottom 6 (bearish) per Momentum Ranking ---
-    st.markdown("### ðŸŽ¯ Sector Selection for Confluence Analysis")
+    st.markdown("### 🎯 Sector Selection for Confluence Analysis")
 
     col_toggle_conf, col_info_conf = st.columns([1, 2])
 
@@ -4827,9 +4839,9 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
                 bot_conf_sectors = bot_conf_from_df
                 st.info("**Confluence pertains to top 4 sectors (bullish) and bottom 6 sectors (bearish) per Momentum Ranking** for this date.")
                 if top_conf_sectors:
-                    st.success(f"**âœ… Bullish (top 4):** {', '.join(top_conf_sectors)}")
+                    st.success(f"**✅ Bullish (top 4):** {', '.join(top_conf_sectors)}")
                 if bot_conf_sectors:
-                    st.warning(f"**âš ï¸ Bearish (bottom 6):** {', '.join(bot_conf_sectors)}")
+                    st.warning(f"**⚠️ Bearish (bottom 6):** {', '.join(bot_conf_sectors)}")
             else:
                 st.info("**Universal:** all stocks from all sectors.")
         elif sector_data_dict and momentum_weights:
@@ -4840,9 +4852,9 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
                     bot_conf_sectors = get_bottom_n_sectors_by_momentum(sector_data_dict, momentum_weights, n=6)
                     st.info("**Confluence pertains to top 4 (bullish) and bottom 6 (bearish) sectors** per Momentum Ranking.")
                     if top_conf_sectors:
-                        st.success(f"**âœ… Bullish:** {', '.join(top_conf_sectors)}")
+                        st.success(f"**✅ Bullish:** {', '.join(top_conf_sectors)}")
                     if bot_conf_sectors:
-                        st.warning(f"**âš ï¸ Bearish:** {', '.join(bot_conf_sectors)}")
+                        st.warning(f"**⚠️ Bearish:** {', '.join(bot_conf_sectors)}")
                 else:
                     st.info("**Universal:** all stocks from all sectors.")
             except Exception:
@@ -4851,11 +4863,11 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
                     top_conf_sectors, bot_conf_sectors = top_retry, bot_retry
                     st.info("**Confluence pertains to top 4 + bottom 6 sectors** (fallback).")
                     if top_conf_sectors:
-                        st.success(f"**âœ… Bullish:** {', '.join(top_conf_sectors)}")
+                        st.success(f"**✅ Bullish:** {', '.join(top_conf_sectors)}")
                     if bot_conf_sectors:
-                        st.warning(f"**âš ï¸ Bearish:** {', '.join(bot_conf_sectors)}")
+                        st.warning(f"**⚠️ Bearish:** {', '.join(bot_conf_sectors)}")
                 else:
-                    st.warning("âš ï¸ Could not resolve sector lists â€” using all sectors.")
+                    st.warning("⚠️ Could not resolve sector lists — using all sectors.")
         else:
             st.info("**Analyzing all stocks from all sectors.**")
 
@@ -4884,22 +4896,22 @@ def display_stock_screener_tab(analysis_date=None, benchmark_data=None, sector_d
 **How Confluence Scoring works** (entry TF: **{entry_label}** + **{conf_label}** confirmation):
 
 Each stock is scored **separately for Bullish and Bearish** across **10 factors** on two timeframes.
-Opposing conditions get **negative (penalty)** points â€” a downtrending stock cannot rank high in the Bullish table.
+Opposing conditions get **negative (penalty)** points — a downtrending stock cannot rank high in the Bullish table.
 
-| # | Factor | Bullish: +Pts | Bullish: âˆ’Pts | Bearish: +Pts | Bearish: âˆ’Pts | Description |
+| # | Factor | Bullish: +Pts | Bullish: −Pts | Bearish: +Pts | Bearish: −Pts | Description |
 |---|--------|---------------|---------------|---------------|---------------|-------------|
-| 1 | **Trend ({entry_label})** | Uptrend (HH/HL): **+4** | Downtrend: **âˆ’3** | Downtrend (LL/LH): **+4** | Uptrend: **âˆ’3** | Swing high/low on last 15 bars. **HH/HL** = at least 3 successive higher highs and higher lows. **LL/LH** = lower lows and lower highs. |
-| 2 | **Trend ({conf_label})** | Uptrend: **+3** | Downtrend: **âˆ’2** | Downtrend: **+3** | Uptrend: **âˆ’2** | Confirmation TF validates or contradicts entry signal. |
-| 3 | **MA Align ({entry_label})** | Price>20>50 DMA: **+3** | Bearish: **âˆ’2** | Price<20<50 DMA: **+3** | Bullish: **âˆ’2** | Price above/below 20 and 50 DMA on entry TF. |
-| 4 | **MA Align ({conf_label})** | Bullish: **+2** | Bearish: **âˆ’1** | Bearish: **+2** | Bullish: **âˆ’1** | Same on confirmation TF. |
-| 5 | **Price Position** | Near HL pivot: **+3** | Near LH pivot: **âˆ’1** | Near LH pivot: **+3** | Near HL pivot: **âˆ’2** | **Near HL** = within 3% of last confirmed pivot LOW (ideal BUY). **Near LH** = within 3% of last confirmed pivot HIGH (ideal SHORT). Uses {entry_label} pivots only; {conf_label} is placeholder. |
-| 6 | **RSI ({entry_label})** | Rising 40â€“70: **+2** | **Falling: âˆ’1** (penalised) | At LH falling 50â€“70: **+2.5** | **Rising: âˆ’1** (penalised) | **(c) RSI direction enforced.** Bullish requires RSI rising; bearish requires RSI falling. Wrong direction = penalty. |
-| 7 | **RSI ({conf_label})** | Rising 40â€“70: **+1.5** | OB: **âˆ’0.5** | Falling 30â€“60: **+1.5** | OS: **âˆ’0.5** | Confirmation TF RSI. |
-| 8 | **MA Crossover ({entry_label})** | Bullish X: **+1.5** | Bearish X: **âˆ’1** | Bearish X: **+1.5** | Bullish X: **âˆ’1** | 20/50 DMA within 1.5% = crossover forming. |
-| 9 | **RSI Divergence** | Bullish div: **+1.5** | Bearish div: **âˆ’1** | Bearish div: **+1.5** | Bullish div: **âˆ’1** | Price vs RSI divergence on last 10 bars (e.g. price lower low, RSI higher low = bullish). |
-| 10 | **Volume** | High: **+1** | â€” | High at resistance: **+1.5** | â€” | Recent vol > 1.2Ã— average. At resistance, high vol supports distribution (bearish). |
+| 1 | **Trend ({entry_label})** | Uptrend (HH/HL): **+4** | Downtrend: **−3** | Downtrend (LL/LH): **+4** | Uptrend: **−3** | Swing high/low on last 15 bars. **HH/HL** = at least 3 successive higher highs and higher lows. **LL/LH** = lower lows and lower highs. |
+| 2 | **Trend ({conf_label})** | Uptrend: **+3** | Downtrend: **−2** | Downtrend: **+3** | Uptrend: **−2** | Confirmation TF validates or contradicts entry signal. |
+| 3 | **MA Align ({entry_label})** | Price>20>50 DMA: **+3** | Bearish: **−2** | Price<20<50 DMA: **+3** | Bullish: **−2** | Price above/below 20 and 50 DMA on entry TF. |
+| 4 | **MA Align ({conf_label})** | Bullish: **+2** | Bearish: **−1** | Bearish: **+2** | Bullish: **−1** | Same on confirmation TF. |
+| 5 | **Price Position** | Near HL pivot: **+3** | Near LH pivot: **−1** | Near LH pivot: **+3** | Near HL pivot: **−2** | **Near HL** = within 3% of last confirmed pivot LOW (ideal BUY). **Near LH** = within 3% of last confirmed pivot HIGH (ideal SHORT). Uses {entry_label} pivots only; {conf_label} is placeholder. |
+| 6 | **RSI ({entry_label})** | Rising 40–70: **+2** | **Falling: −1** (penalised) | At LH falling 50–70: **+2.5** | **Rising: −1** (penalised) | **(c) RSI direction enforced.** Bullish requires RSI rising; bearish requires RSI falling. Wrong direction = penalty. |
+| 7 | **RSI ({conf_label})** | Rising 40–70: **+1.5** | OB: **−0.5** | Falling 30–60: **+1.5** | OS: **−0.5** | Confirmation TF RSI. |
+| 8 | **MA Crossover ({entry_label})** | Bullish X: **+1.5** | Bearish X: **−1** | Bearish X: **+1.5** | Bullish X: **−1** | 20/50 DMA within 1.5% = crossover forming. |
+| 9 | **RSI Divergence** | Bullish div: **+1.5** | Bearish div: **−1** | Bearish div: **+1.5** | Bullish div: **−1** | Price vs RSI divergence on last 10 bars (e.g. price lower low, RSI higher low = bullish). |
+| 10 | **Volume** | High: **+1** | — | High at resistance: **+1.5** | — | Recent vol > 1.2× average. At resistance, high vol supports distribution (bearish). |
 
-**Max score â‰ˆ 20 pts** per side. **â‰¥ 12** = excellent, **â‰¥ 9** = good/strong, **5â€“9** = moderate, **< 5** = weak/avoid. **Negative** = opposite setup.
+**Max score ≈ 20 pts** per side. **≥ 12** = excellent, **≥ 9** = good/strong, **5–9** = moderate, **< 5** = weak/avoid. **Negative** = opposite setup.
 """)
 
     st.info(f"Analyzing confluence: **{conf_tf_label}** (entry **{entry_label}** + confirmation **{conf_label}**). This may take a few minutes...")
@@ -4918,9 +4930,9 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
                 _rows.append({'Symbol': _sym, 'Sector': _sec, 'Company': _info.get('name', _sym), 'Company Name': _info.get('name', _sym)})
         df_stocks = pd.DataFrame(_rows)
         if df_stocks.empty:
-            st.warning("âš ï¸ No sectorâ€“company mapping available. Add sectors in Sector Companies / Sector-Company.xlsx and reload.")
+            st.warning("⚠️ No sector–company mapping available. Add sectors in Sector Companies / Sector-Company.xlsx and reload.")
         else:
-            st.caption("â„¹ï¸ Screener had no rows for this date; using sectorâ€“company universe for confluence.")
+            st.caption("ℹ️ Screener had no rows for this date; using sector–company universe for confluence.")
 
     stock_results_bullish = []
     stock_results_bearish = []
@@ -4932,7 +4944,7 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
         sector = row['Sector']
         company_name = row['Company Name']
 
-        # (a+b) Sector filtering â€” Top 4 (bullish) + Bottom 6 (bearish) or Universal
+        # (a+b) Sector filtering — Top 4 (bullish) + Bottom 6 (bearish) or Universal
         use_all_bull = (
             conf_sector_filter == "Universal (All Sectors)"
             or (conf_sector_filter == "Top 4 + Bottom 6 (per Momentum Ranking)" and not top_conf_sectors)
@@ -4951,15 +4963,16 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
 
         try:
             # --- Fetch data ---
+            # Convert analysis_date (date) to datetime for fetch_sector_data
+            from datetime import datetime as _dt2
+            _end_dt = _dt2.combine(analysis_date, _dt2.min.time()) if hasattr(analysis_date, 'year') and not isinstance(analysis_date, _dt2) else analysis_date
             # Always need daily data for 1D confirmation timeframe
-            from datetime import datetime as _dt
-            _analysis_end = _dt.combine(analysis_date, _dt.min.time()) if hasattr(analysis_date, 'year') and not isinstance(analysis_date, _dt) else analysis_date
-            data_1d = fetch_sector_data(symbol, end_date=_analysis_end, interval='1d')
+            data_1d = fetch_sector_data(symbol, end_date=_end_dt, interval='1d')
             if data_1d is None or len(data_1d) < 50:
                 continue
 
             if conf_tf_code in ('2h', '4h'):
-                data_entry_raw = fetch_sector_data(symbol, end_date=_analysis_end, interval='1h')
+                data_entry_raw = fetch_sector_data(symbol, end_date=_end_dt, interval='1h')
                 min_bars = 80 if conf_tf_code == '4h' else 40
                 if data_entry_raw is None or len(data_entry_raw) < min_bars:
                     continue
@@ -4980,12 +4993,12 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
             # RSI display strings
             rsi_e = analysis_data['rsi_entry']
             rsi_ep = analysis_data['rsi_entry_prev']
-            rsi_entry_disp = f"{rsi_e}" + (" â†‘" if rsi_e > rsi_ep else (" â†“" if rsi_e < rsi_ep else ""))
+            rsi_entry_disp = f"{rsi_e}" + (" ↑" if rsi_e > rsi_ep else (" ↓" if rsi_e < rsi_ep else ""))
             rsi_d = analysis_data['rsi_1d']
             rsi_dp = analysis_data['rsi_1d_prev']
-            rsi_conf_disp = f"{rsi_d}" + (" â†‘" if rsi_d > rsi_dp else (" â†“" if rsi_d < rsi_dp else ""))
-            # Column naming: entry_label/conf_label only (1D+2H â†’ Trend (1D), Trend (2H) | 4H+1H â†’ Trend (4H), Trend (1H))
-            # Data mapping: 1D+2H â†’ entry=1D data (trend_1d), conf=2H data (trend_entry); 4H+1H â†’ entry=4H (trend_entry), conf=1H (trend_1d)
+            rsi_conf_disp = f"{rsi_d}" + (" ↑" if rsi_d > rsi_dp else (" ↓" if rsi_d < rsi_dp else ""))
+            # Column naming: entry_label/conf_label only (1D+2H → Trend (1D), Trend (2H) | 4H+1H → Trend (4H), Trend (1H))
+            # Data mapping: 1D+2H → entry=1D data (trend_1d), conf=2H data (trend_entry); 4H+1H → entry=4H (trend_entry), conf=1H (trend_1d)
             trend_entry_val = analysis_data['trend_entry']
             trend_conf_val = analysis_data['trend_1d']
             ma_entry_val = analysis_data['ma_alignment_entry']
@@ -5030,7 +5043,7 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
     confluence_shortlist_symbols = set()
 
     if not stock_results_bullish:
-        st.warning("âš ï¸ No stock data available for confluence analysis")
+        st.warning("⚠️ No stock data available for confluence analysis")
     else:
         df_bullish = pd.DataFrame(stock_results_bullish).sort_values('Score', ascending=False)
         df_bearish = pd.DataFrame(stock_results_bearish).sort_values('Score', ascending=False)
@@ -5057,8 +5070,8 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
         confluence_shortlist_symbols = set(df_bull8['Symbol'].tolist()) | set(df_bear8['Symbol'].tolist())
 
         # --- Display Bullish ---
-        st.markdown(f"### ðŸŸ¢ Top 8 Bullish by Confluence ({conf_tf_label})")
-        st.caption("Only stocks **passing Phase-1 gates** (score > -5) are included. Score â‰¥ 12 = excellent, â‰¥ 9 = good. **Price Pos. 'Near HL'** = ideal BUY at pivot support.")
+        st.markdown(f"### 🟢 Top 8 Bullish by Confluence ({conf_tf_label})")
+        st.caption("Only stocks **passing Phase-1 gates** (score > -5) are included. Score ≥ 12 = excellent, ≥ 9 = good. **Price Pos. 'Near HL'** = ideal BUY at pivot support.")
 
         def _color_bull(val):
             try:
@@ -5084,10 +5097,10 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
         )
 
         # Breakdown for top 3 bullish
-        with st.expander("ðŸ“Š Scoring breakdown â€” Top 3 Bullish"):
+        with st.expander("📊 Scoring breakdown — Top 3 Bullish"):
             for i in range(min(3, len(df_bull8))):
                 r = df_bull8.iloc[i]
-                st.markdown(f"**{i+1}. {r['Company']} ({r['Symbol']})** â€” Score: **{r['Score']}**")
+                st.markdown(f"**{i+1}. {r['Company']} ({r['Symbol']})** — Score: **{r['Score']}**")
                 st.markdown(f"  - {r['Description']}")
                 st.markdown(f"  - Trend: {entry_label}={r[f'Trend ({entry_label})']}, {conf_label}={r[f'Trend ({conf_label})']}")
                 st.markdown(f"  - MA: {r[f'MA Align ({entry_label})']}, {r[f'MA Align ({conf_label})']} | RSI: {r[f'RSI ({entry_label})']}, {r[f'RSI ({conf_label})']}")
@@ -5096,8 +5109,8 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
         st.markdown("---")
 
         # --- Display Bearish ---
-        st.markdown(f"### ðŸ”´ Top 8 Bearish by Confluence ({conf_tf_label})")
-        st.caption("Only stocks **passing Phase-1 gates** (score > -5) are included. Score â‰¥ 12 = excellent, â‰¥ 9 = good. **Price Pos. 'Near LH'** = ideal SHORT at pivot resistance.")
+        st.markdown(f"### 🔴 Top 8 Bearish by Confluence ({conf_tf_label})")
+        st.caption("Only stocks **passing Phase-1 gates** (score > -5) are included. Score ≥ 12 = excellent, ≥ 9 = good. **Price Pos. 'Near LH'** = ideal SHORT at pivot resistance.")
 
         def _color_bear(val):
             try:
@@ -5123,10 +5136,10 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
         )
 
         # Breakdown for top 3 bearish
-        with st.expander("ðŸ“Š Scoring breakdown â€” Top 3 Bearish"):
+        with st.expander("📊 Scoring breakdown — Top 3 Bearish"):
             for i in range(min(3, len(df_bear8))):
                 r = df_bear8.iloc[i]
-                st.markdown(f"**{i+1}. {r['Company']} ({r['Symbol']})** â€” Score: **{r['Score']}**")
+                st.markdown(f"**{i+1}. {r['Company']} ({r['Symbol']})** — Score: **{r['Score']}**")
                 st.markdown(f"  - {r['Description']}")
                 st.markdown(f"  - Trend: {entry_label}={r[f'Trend ({entry_label})']}, {conf_label}={r[f'Trend ({conf_label})']}")
                 st.markdown(f"  - MA: {r[f'MA Align ({entry_label})']}, {r[f'MA Align ({conf_label})']} | RSI: {r[f'RSI ({entry_label})']}, {r[f'RSI ({conf_label})']}")
@@ -5134,15 +5147,15 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
 
         # Key insights
         st.markdown("---")
-        st.markdown("### ðŸ” Key Insights")
+        st.markdown("### 🔍 Key Insights")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Strong Bullish (Score â‰¥ 9)", len(df_bullish[df_bullish['Score'] >= 9]))
+            st.metric("Strong Bullish (Score ≥ 9)", len(df_bullish[df_bullish['Score'] >= 9]))
             bull_at_support = len(df_bullish[(df_bullish['Score'] >= 9) & (df_bullish['Price Pos.'].isin(['Near Low', 'Near HL']))])
             st.metric("Bullish at Support (Near HL)", bull_at_support)
             st.caption("Ideal bullish entries at HL")
         with col2:
-            st.metric("Strong Bearish (Score â‰¥ 9)", len(df_bearish[df_bearish['Score'] >= 9]))
+            st.metric("Strong Bearish (Score ≥ 9)", len(df_bearish[df_bearish['Score'] >= 9]))
             bear_at_resist = len(df_bearish[(df_bearish['Score'] >= 9) & (df_bearish['Price Pos.'].isin(['Near High', 'Near LH']))])
             st.metric("Bearish at Resistance (Near LH)", bear_at_resist)
             st.caption("Ideal SHORT entries at LH")
@@ -5150,12 +5163,12 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
         # Warning for late bearish entries
         bear_too_late = len(df_bearish[(df_bearish['Score'] >= 9) & (df_bearish['Price Pos.'].isin(['Near Low', 'Near HL']))])
         if bear_too_late > 0:
-            st.warning(f"âš ï¸ {bear_too_late} bearish setup(s) are at 'Near HL' â€” TOO LATE for SHORT (price at support).")
+            st.warning(f"⚠️ {bear_too_late} bearish setup(s) are at 'Near HL' — TOO LATE for SHORT (price at support).")
 
-        st.success(f"âœ… Confluence analysis complete! Analyzed {len(stock_results_bullish) + len(stock_results_bearish)} stocks on {conf_tf_label} (only stocks passing Phase-1 gates shown in tables).")
+        st.success(f"✅ Confluence analysis complete! Analyzed {len(stock_results_bullish) + len(stock_results_bearish)} stocks on {conf_tf_label} (only stocks passing Phase-1 gates shown in tables).")
 
-        # â”€â”€ Download button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        st.markdown("### ðŸ“¥ Download Confluence Summary")
+        # ── Download button ────────────────────────────────────────────────────
+        st.markdown("### 📥 Download Confluence Summary")
 
         _analysis_date_str = (
             analysis_date.strftime('%Y-%m-%d')
@@ -5189,7 +5202,7 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
             col_dl1, col_dl2 = st.columns([1, 2])
             with col_dl1:
                 st.download_button(
-                    label     = f"â¬‡ï¸ Download Excel ({conf_tf_label})",
+                    label     = f"⬇️ Download Excel ({conf_tf_label})",
                     data      = _excel_bytes,
                     file_name = f"confluence_{conf_tf_label.replace(' ','_')}_{_analysis_date_str}.xlsx",
                     mime      = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -5199,42 +5212,42 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
             with col_dl2:
                 st.info(
                     f"**Excel contains 4 sheets:**  \n"
-                    f"â‘  Summary (gate rules + key metrics)  \n"
-                    f"â‘¡ ðŸŸ¢ Top Bullish â€” **{_bull_pass}** passed ({_bull_rej} rejected)  \n"
-                    f"â‘¢ ðŸ”´ Top Bearish â€” **{_bear_pass}** passed ({_bear_rej} rejected)  \n"
-                    f"â‘£ â›” Rejected â€” stocks that failed Phase 1 gates"
+                    f"① Summary (gate rules + key metrics)  \n"
+                    f"② 🟢 Top Bullish — **{_bull_pass}** passed ({_bull_rej} rejected)  \n"
+                    f"③ 🔴 Top Bearish — **{_bear_pass}** passed ({_bear_rej} rejected)  \n"
+                    f"④ ⛔ Rejected — stocks that failed Phase 1 gates"
                 )
         except Exception as _dl_err:
-            st.warning(f"âš ï¸ Download not available: {_dl_err}")
+            st.warning(f"⚠️ Download not available: {_dl_err}")
 
         st.markdown("---")
 
         # Interpretation guide (v3.1)
-        with st.expander("â„¹ï¸ Score Interpretation Guide (v3.1)"):
+        with st.expander("ℹ️ Score Interpretation Guide (v3.1)"):
             st.markdown("""
-**Max score â‰ˆ 20 pts** per side (10 factors across entry TF + 1D).
+**Max score ≈ 20 pts** per side (10 factors across entry TF + 1D).
 
 **Score Ranges:**
-- **â‰¥ 12:** ðŸŸ¢ Excellent â€” multiple confluences aligned, high-probability setup
-- **9â€“12:** ðŸŸ¢ Good / strong â€” solid entry opportunity, most factors aligned
-- **5â€“9:** ðŸŸ¡ Moderate â€” some confirmation needed, mixed signals
-- **< 5:** ðŸ”´ Weak â€” high conflict, AVOID
-- **â‰¤ -5 (rejected):** â›” Failed Phase-1 gates â€” not shown in Top 8 tables; see Rejected sheet in Excel.
+- **≥ 12:** 🟢 Excellent — multiple confluences aligned, high-probability setup
+- **9–12:** 🟢 Good / strong — solid entry opportunity, most factors aligned
+- **5–9:** 🟡 Moderate — some confirmation needed, mixed signals
+- **< 5:** 🔴 Weak — high conflict, AVOID
+- **≤ -5 (rejected):** ⛔ Failed Phase-1 gates — not shown in Top 8 tables; see Rejected sheet in Excel.
 
 **Price Position:**
-- **Near HL** = within 3% of last confirmed pivot LOW â†’ ideal for **Bullish** (buy at HL support)
-- **Near LH** = within 3% of last confirmed pivot HIGH â†’ ideal for **Bearish** (short at LH resistance)
+- **Near HL** = within 3% of last confirmed pivot LOW → ideal for **Bullish** (buy at HL support)
+- **Near LH** = within 3% of last confirmed pivot HIGH → ideal for **Bearish** (short at LH resistance)
 - Bearish at "Near HL" = **TOO LATE** (price at support)
 
-**v3.1 logic:** Phase-1 hard gates for bullish (Uptrend required, RSI rising & <70 required, MA not Bearish required). Middle price position is **allowed** (+1 pt). Near HL = +3 (ideal), Middle = +1 (acceptable), Near LH = âˆ’1 (caution, not rejected unless RSI also falling). Graduated RSI zone scoring: 40â€“55 = +2.5 (sweet spot), 55â€“65 = +2, 65â€“70 = +1. Rejected stocks shown in â›” Rejected sheet of the Excel download. Confluence pertains to **top 4 sectors (bullish) and bottom 6 sectors (bearish)** per Momentum Ranking when that filter is selected.
+**v3.1 logic:** Phase-1 hard gates for bullish (Uptrend required, RSI rising & <70 required, MA not Bearish required). Middle price position is **allowed** (+1 pt). Near HL = +3 (ideal), Middle = +1 (acceptable), Near LH = −1 (caution, not rejected unless RSI also falling). Graduated RSI zone scoring: 40–55 = +2.5 (sweet spot), 55–65 = +2, 65–70 = +1. Rejected stocks shown in ⛔ Rejected sheet of the Excel download. Confluence pertains to **top 4 sectors (bullish) and bottom 6 sectors (bearish)** per Momentum Ranking when that filter is selected.
 """)
 
         # --- Last 30 days: individual parameter lookback per stock ---
-        with st.expander("ðŸ“… Last 30 days â€” individual parameters (lookback)"):
+        with st.expander("📅 Last 30 days — individual parameters (lookback)"):
             st.caption("See how confluence parameters (trend, MA, RSI, price position, scores) changed over the last 30 trading days for a selected stock.")
             symbol_options = sorted(confluence_shortlist_symbols)
             if not symbol_options:
-                st.info("No confluence shortlist â€” run analysis above to see stocks.")
+                st.info("No confluence shortlist — run analysis above to see stocks.")
             else:
                 def _company_for(s):
                     b = df_bullish[df_bullish['Symbol'] == s]
@@ -5245,7 +5258,7 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
                     "Select stock",
                     options=symbol_options,
                     key="conf_30d_symbol",
-                    format_func=lambda s: f"{s} â€” {_company_for(s)}"
+                    format_func=lambda s: f"{s} — {_company_for(s)}"
                 )
                 if sel_symbol:
                     with st.spinner(f"Building 30-day parameter history for {sel_symbol}..."):
@@ -5285,8 +5298,8 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
                                 bear_sc, _ = calculate_confluence_score_bearish(ana)
                                 rsi_e, rsi_d = ana['rsi_entry'], ana['rsi_1d']
                                 rsi_ep, rsi_dp = ana.get('rsi_entry_prev', rsi_e), ana.get('rsi_1d_prev', rsi_d)
-                                rsi_e_str = f"{rsi_e}" + (" â†‘" if rsi_e > rsi_ep else (" â†“" if rsi_e < rsi_ep else ""))
-                                rsi_d_str = f"{rsi_d}" + (" â†‘" if rsi_d > rsi_dp else (" â†“" if rsi_d < rsi_dp else ""))
+                                rsi_e_str = f"{rsi_e}" + (" ↑" if rsi_e > rsi_ep else (" ↓" if rsi_e < rsi_ep else ""))
+                                rsi_d_str = f"{rsi_d}" + (" ↑" if rsi_d > rsi_dp else (" ↓" if rsi_d < rsi_dp else ""))
                                 trend_ent = ana['trend_entry']
                                 trend_1d = ana['trend_1d']
                                 ma_ent = ana['ma_alignment_entry']
@@ -5329,7 +5342,7 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
     # ============================================================
     # PART 4: INDIVIDUAL STOCK - FIBONACCI ANALYSIS (shortlisted only)
     # ============================================================
-    st.markdown("## ðŸ“Š PART 4: Individual Stock - Fibonacci Analysis")
+    st.markdown("## 📊 PART 4: Individual Stock - Fibonacci Analysis")
     st.markdown("---")
 
     # Build shortlist: union of Top 10 Bullish + Top 10 Bearish (MA+RSI+VWAP) + Confluence Top 8 Bull + Top 8 Bear
@@ -5385,7 +5398,7 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
             if in_zone:
                 fib_50 = fib_levels[0.5]
                 pct_from_fib = ((current_price - fib_50) / fib_50) * 100
-                remark = f"Fib 0.5: â‚¹{fib_50:,.2f} | {pct_from_fib:+.2f}% from level"
+                remark = f"Fib 0.5: ₹{fib_50:,.2f} | {pct_from_fib:+.2f}% from level"
                 last_crossing = find_last_crossing_time(data_daily_agg, fib_50, current_price)
 
                 data_1h = fetch_sector_data(symbol, end_date=analysis_date, interval='1h')
@@ -5417,18 +5430,18 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
     if fib_results:
         df_fib = pd.DataFrame(fib_results)
         df_fib = df_fib.sort_values('Match Score', ascending=False)
-        st.markdown("### ðŸŽ¯ Stocks near Fibonacci 0.5 (Golden Level)")
+        st.markdown("### 🎯 Stocks near Fibonacci 0.5 (Golden Level)")
         display_cols = ['Company', 'Stock Price', 'Fib Level', 'Remark', 'Last Crossing Time', 'RSI (1H)', 'ADX (1H)']
         st.dataframe(df_fib[display_cols], use_container_width=True, hide_index=True)
-        st.success(f"âœ… Found {len(fib_results)} stocks near Fibonacci 0.5 level (out of {len(df_fib_stocks)} shortlisted)")
+        st.success(f"✅ Found {len(fib_results)} stocks near Fibonacci 0.5 level (out of {len(df_fib_stocks)} shortlisted)")
     else:
-        st.warning(f"âš ï¸ No stocks near Fibonacci 0.5 level (checked {len(df_fib_stocks)} shortlisted stocks)")
+        st.warning(f"⚠️ No stocks near Fibonacci 0.5 level (checked {len(df_fib_stocks)} shortlisted stocks)")
     
     # ============================================================
     # HISTORICAL LOGGING & EXPORT
     # ============================================================
     st.markdown("---")
-    st.markdown("## ðŸ“¥ Export & Historical Logs")
+    st.markdown("## 📥 Export & Historical Logs")
     
     # Prepare Excel export with all data
     excel_buffer = BytesIO()
@@ -5451,20 +5464,20 @@ Opposing conditions get **negative (penalty)** points â€” a downtrending st
     excel_buffer.seek(0)
     
     st.download_button(
-        label="ðŸ“¥ Download Complete Analysis (Excel)",
+        label="📥 Download Complete Analysis (Excel)",
         data=excel_buffer.read(),
         file_name=f'stock_analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     
-    st.success(f"âœ… Complete analysis finished! Total stocks analyzed: {total_market_stocks}")
+    st.success(f"✅ Complete analysis finished! Total stocks analyzed: {total_market_stocks}")
 
 
 def main():
     """Main Streamlit app function."""
     try:
         # Header
-        st.markdown('<div class="main-header">ðŸ“Š NSE Market Sector Analysis Tool</div>', 
+        st.markdown('<div class="main-header">📊 NSE Market Sector Analysis Tool</div>', 
                     unsafe_allow_html=True)
         st.markdown('<div class="sub-header">Advanced Technical Analysis with Configurable Weights</div>', 
                     unsafe_allow_html=True)
@@ -5474,11 +5487,11 @@ def main():
         try:
             use_etf, momentum_weights, reversal_weights, analysis_date, time_interval, reversal_thresholds, enable_color_coding = get_sidebar_controls()
         except Exception as e:
-            st.error(f"âŒ Error loading sidebar controls: {str(e)}")
+            st.error(f"❌ Error loading sidebar controls: {str(e)}")
             return
         
         # Display current weights
-        with st.sidebar.expander("ðŸ“‹ Current Configuration"):
+        with st.sidebar.expander("📋 Current Configuration"):
             st.write("**Momentum Weights:**")
             st.json(momentum_weights)
             st.write("**Reversal Weights:**")
@@ -5487,7 +5500,7 @@ def main():
             st.write(f"**Analysis Date:** {analysis_date}")
         
         # Display symbols being used
-        with st.sidebar.expander("ðŸ“Š Symbols Used"):
+        with st.sidebar.expander("📊 Symbols Used"):
             data_source = SECTOR_ETFS if use_etf else SECTORS
             for sector, symbol in list(data_source.items())[:5]:  # Show first 5
                 st.text(f"{sector}: {symbol}")
@@ -5496,7 +5509,7 @@ def main():
             st.info("See SYMBOLS.txt for complete list")
         
         # Refresh button
-        if st.button("ðŸ”„ Run Analysis", type="primary", use_container_width=True):
+        if st.button("🔄 Run Analysis", type="primary", use_container_width=True):
             st.cache_data.clear()
             clear_data_cache()  # Also clear data fetcher cache
         
@@ -5508,8 +5521,8 @@ def main():
             df, sector_data, market_date = analyze_sectors_with_progress(use_etf, momentum_weights, reversal_weights, analysis_datetime, time_interval, reversal_thresholds)
         
         if df is None or df.empty:
-            st.error("âŒ Unable to complete analysis. Please try again or check your internet connection.")
-            st.info("ðŸ’¡ Tip: Ensure yfinance can reach Yahoo Finance servers. If the issue persists, try again in a few moments.")
+            st.error("❌ Unable to complete analysis. Please try again or check your internet connection.")
+            st.info("💡 Tip: Ensure yfinance can reach Yahoo Finance servers. If the issue persists, try again in a few moments.")
             return
         
         # Display combined data source and date information with IST timezone
@@ -5521,10 +5534,10 @@ def main():
         current_time_ist = ist_time.strftime('%Y-%m-%d %H:%M:%S IST')
         st.markdown(f'''
             <div class="date-info">
-                <b>ðŸ“Š Data Source:</b> {data_source_type} | 
-                <b>ðŸ“… Analysis Date:</b> {current_time_ist} | 
-                <b>ðŸ“ˆ Market Data Date:</b> {market_date} | 
-                <b>â±ï¸ Interval:</b> {time_interval}
+                <b>📊 Data Source:</b> {data_source_type} | 
+                <b>📅 Analysis Date:</b> {current_time_ist} | 
+                <b>📈 Market Data Date:</b> {market_date} | 
+                <b>⏱️ Interval:</b> {time_interval}
             </div>
         ''', unsafe_allow_html=True)
         
@@ -5535,15 +5548,15 @@ def main():
         # Create tabs (9 total: Momentum, Market breadth, Stock Analysis, Reversal, Interpretation, Company Momentum, Company Reversals, Historical, Data Sources)
         try:
             tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
-                "ðŸ“ˆ Momentum Ranking",
-                "ðŸ“Š Market breadth",
-                "ðŸ“Š Stock Screener",
-                "ðŸ”„ Reversal Candidates",
-                "ðŸ“Š Interpretation Guide",
-                "ðŸ¢ Company Momentum",
-                "ðŸ¢ Company Reversals",
-                "ðŸ“… Historical Rankings",
-                "ðŸ”Œ Data Sources",
+                "📈 Momentum Ranking",
+                "📊 Market breadth",
+                "📊 Stock Screener",
+                "🔄 Reversal Candidates",
+                "📊 Interpretation Guide",
+                "🏢 Company Momentum",
+                "🏢 Company Reversals",
+                "📅 Historical Rankings",
+                "🔌 Data Sources",
             ])
             
             # Get benchmark data for trend analysis
@@ -5555,14 +5568,14 @@ def main():
                     display_momentum_tab(df, sector_data, benchmark_data, enable_color_coding)
                     display_tooltip_legend()
                 except Exception as e:
-                    st.error(f"âŒ Error displaying momentum tab: {str(e)}")
+                    st.error(f"❌ Error displaying momentum tab: {str(e)}")
                     st.text(traceback.format_exc())
             
             with tab2:
                 try:
                     display_market_breadth_tab(benchmark_data, analysis_date, sector_data, momentum_weights)
                 except Exception as e:
-                    st.error(f"âŒ Error displaying market breadth tab: {str(e)}")
+                    st.error(f"❌ Error displaying market breadth tab: {str(e)}")
                     st.text(traceback.format_exc())
             
             with tab3:
@@ -5575,7 +5588,7 @@ def main():
                         df_momentum=df,
                     )
                 except Exception as e:
-                    st.error(f"âŒ Error displaying stock screener tab: {str(e)}")
+                    st.error(f"❌ Error displaying stock screener tab: {str(e)}")
                     st.text(traceback.format_exc())
             
             with tab4:
@@ -5583,7 +5596,7 @@ def main():
                     display_reversal_tab(df, sector_data, benchmark_data, reversal_weights, reversal_thresholds, enable_color_coding)
                     display_tooltip_legend()
                 except Exception as e:
-                    st.error(f"âŒ Error displaying reversal tab: {str(e)}")
+                    st.error(f"❌ Error displaying reversal tab: {str(e)}")
                     st.text(traceback.format_exc())
             
             with tab5:
@@ -5591,7 +5604,7 @@ def main():
                     display_interpretation_tab()
                     display_tooltip_legend()
                 except Exception as e:
-                    st.error(f"âŒ Error displaying interpretation tab: {str(e)}")
+                    st.error(f"❌ Error displaying interpretation tab: {str(e)}")
             
             with tab6:
                 try:
@@ -5602,7 +5615,7 @@ def main():
                     display_company_momentum_tab(time_interval=time_interval, momentum_weights=momentum_weights, analysis_date=analysis_date, default_sector=top_sector)
                     display_tooltip_legend()
                 except Exception as e:
-                    st.error(f"âŒ Error displaying company momentum tab: {str(e)}")
+                    st.error(f"❌ Error displaying company momentum tab: {str(e)}")
                     st.text(traceback.format_exc())
             
             with tab7:
@@ -5616,7 +5629,7 @@ def main():
                     display_company_reversal_tab(time_interval=time_interval, reversal_weights=reversal_weights, reversal_thresholds=reversal_thresholds, analysis_date=analysis_date, default_sector=top_reversal_sector)
                     display_tooltip_legend()
                 except Exception as e:
-                    st.error(f"âŒ Error displaying company reversal tab: {str(e)}")
+                    st.error(f"❌ Error displaying company reversal tab: {str(e)}")
                     st.text(traceback.format_exc())
             
             with tab8:
@@ -5624,24 +5637,24 @@ def main():
                     display_historical_rankings_tab(sector_data, benchmark_data, momentum_weights, reversal_weights, reversal_thresholds, use_etf)
                     display_tooltip_legend()
                 except Exception as e:
-                    st.error(f"âŒ Error displaying historical rankings tab: {str(e)}")
+                    st.error(f"❌ Error displaying historical rankings tab: {str(e)}")
                     st.text(traceback.format_exc())
             
             with tab9:
                 try:
                     display_data_sources_tab()
                 except Exception as e:
-                    st.error(f"âŒ Error displaying data sources tab: {str(e)}")
+                    st.error(f"❌ Error displaying data sources tab: {str(e)}")
                     st.text(traceback.format_exc())
             
             # Note: Sector Companies tab removed to make room for Stock Analysis tab
                     
         except Exception as e:
-            st.error(f"âŒ Error creating tabs: {str(e)}")
+            st.error(f"❌ Error creating tabs: {str(e)}")
             st.text(traceback.format_exc())
     
     except Exception as e:
-        st.error(f"âŒ Critical error in main function: {str(e)}")
+        st.error(f"❌ Critical error in main function: {str(e)}")
         st.text(traceback.format_exc())
         st.stop()
 
@@ -5650,5 +5663,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        st.error(f"âŒ Application failed to start: {str(e)}")
+        st.error(f"❌ Application failed to start: {str(e)}")
         st.text(traceback.format_exc())
